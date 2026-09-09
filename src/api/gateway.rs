@@ -297,7 +297,7 @@ mod tests {
     use super::*;
 
     fn provider(name: &str, source: ApiSource) -> TokenProvider {
-        let path = std::env::temp_dir().join(format!("fastpotify-{name}-unused-token.json"));
+        let path = std::env::temp_dir().join(format!("magicspot-{name}-unused-token.json"));
         TokenProvider::Web(super::super::client::WebTokens::new(
             reqwest::Client::new(),
             crate::auth::StoredToken::default(),

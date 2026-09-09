@@ -1,7 +1,7 @@
 //! System fallback fonts for scripts not covered by the interface font.
 //!
 //! Inter covers Latin, Greek, and Cyrillic. Bundling fonts for every other
-//! script would greatly increase the binary size, so Fastpotify registers one
+//! script would greatly increase the binary size, so MagicSpot registers one
 //! suitable fallback per script from what the desktop already carries.
 //!
 //! macOS answers this itself, in the language the user reads, and the

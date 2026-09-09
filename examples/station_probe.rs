@@ -13,7 +13,7 @@ fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| "spotify:track:4uLU6hMCjMI75M1A2tKUQC".into());
     let id = track.rsplit(':').next().unwrap_or_default().to_string();
 
-    let dirs = fastpotify::paths::AppDirs::discover();
+    let dirs = magicspot::paths::AppDirs::discover();
     let cache = Cache::new(Some(dirs.credentials_dir().as_path()), None, None, None)?;
     let credentials = cache
         .credentials()

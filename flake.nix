@@ -86,14 +86,14 @@
       packages = forAllSystems (
         pkgs:
         let
-          fastpotify =
+          magicspot =
             let
               toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
               rustPlatform = pkgs.makeRustPlatform {
                 cargo = toolchain;
                 rustc = toolchain;
               };
-              cmakeWithLibdir = pkgs.writeShellScript "cmake-fastpotify" ''
+              cmakeWithLibdir = pkgs.writeShellScript "cmake-magicspot" ''
                 if [[ "$1" == "--build" ]]; then
                   exec ${pkgs.cmake}/bin/cmake "$@"
                 else
@@ -114,14 +114,14 @@
               );
             in
             rustPlatform.buildRustPackage {
-              pname = "fastpotify";
+              pname = "magicspot";
               version = (pkgs.lib.importTOML ./Cargo.toml).package.version;
               src = self;
 
               # The lock file contains git dependencies. fetchCargoVendor includes
               # them in the fixed-output dependency tree, unlike cargoLock alone.
               cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
-                pname = "fastpotify";
+                pname = "magicspot";
                 version = (pkgs.lib.importTOML ./Cargo.toml).package.version;
                 src = self;
                 hash = "sha256-m3mc9NppLyUkKNXv/U0NZOdLUC6CAi7+LUqfsc4/q30=";
@@ -157,31 +157,31 @@
 
               # The GUI dlopens its Wayland, X11 and GL libraries at run time.
               postFixup = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-                wrapProgram $out/bin/fastpotify \
+                wrapProgram $out/bin/magicspot \
                   --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibs}
               '';
 
               postInstall = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-                install -Dm644 packaging/applications/fastpotify.desktop \
-                  $out/share/applications/fastpotify.desktop
-                install -Dm644 packaging/icons/fastpotify.svg \
-                  $out/share/icons/hicolor/scalable/apps/fastpotify.svg
+                install -Dm644 packaging/applications/magicspot.desktop \
+                  $out/share/applications/magicspot.desktop
+                install -Dm644 packaging/icons/magicspot.svg \
+                  $out/share/icons/hicolor/scalable/apps/magicspot.svg
               '';
 
               meta = {
                 description = "Fast native Spotify client with local playback and Spotify Connect";
-                homepage = "https://fastpotify.rocks";
+                homepage = "https://github.com/FallenG101/MagicSpot";
                 license = pkgs.lib.licenses.mit;
-                mainProgram = "fastpotify";
+                mainProgram = "magicspot";
               };
             };
 
-          fastpotify-app =
+          magicspot-app =
             let
-              version = pkgs.lib.getVersion fastpotify;
+              version = pkgs.lib.getVersion magicspot;
               build = pkgs.lib.head (pkgs.lib.splitString "-" version);
               icon =
-                pkgs.runCommand "fastpotify-icon"
+                pkgs.runCommand "magicspot-icon"
                   {
                     nativeBuildInputs = [ pkgs.icnsify ];
                   }
@@ -189,35 +189,35 @@
                     icnsify ${./packaging/macos/icon-1024.png} -o $out
                   '';
             in
-            pkgs.runCommand "fastpotify-app"
+            pkgs.runCommand "magicspot-app"
               {
                 meta = {
-                  description = "Fastpotify as a macOS app bundle";
-                  homepage = "https://fastpotify.rocks";
+                  description = "MagicSpot as a macOS app bundle";
+                  homepage = "https://github.com/FallenG101/MagicSpot";
                   license = pkgs.lib.licenses.mit;
                   platforms = pkgs.lib.platforms.darwin;
                 };
               }
               ''
-                app="$out/Applications/Fastpotify.app/Contents"
+                app="$out/Applications/MagicSpot.app/Contents"
                 mkdir -p "$app/MacOS" "$app/Resources"
-                cp ${fastpotify}/bin/fastpotify "$app/MacOS/fastpotify"
-                chmod 755 "$app/MacOS/fastpotify"
-                cp ${icon} "$app/Resources/fastpotify.icns"
+                cp ${magicspot}/bin/magicspot "$app/MacOS/magicspot"
+                chmod 755 "$app/MacOS/magicspot"
+                cp ${icon} "$app/Resources/magicspot.icns"
                 sed -e "s/__VERSION__/${version}/g" -e "s/__BUILD__/${build}/g" \
                   ${./packaging/macos/Info.plist} > "$app/Info.plist"
                 /usr/bin/codesign --force --sign - \
-                  "$out/Applications/Fastpotify.app"
+                  "$out/Applications/MagicSpot.app"
                 /usr/bin/codesign --verify --strict \
-                  "$out/Applications/Fastpotify.app"
+                  "$out/Applications/MagicSpot.app"
               '';
         in
         {
-          default = fastpotify;
-          inherit fastpotify;
+          default = magicspot;
+          inherit magicspot;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
-          inherit fastpotify-app;
+          inherit magicspot-app;
         }
       );
 

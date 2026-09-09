@@ -22,17 +22,17 @@ use crate::model::*;
 fn image(seed: u32) -> Vec<Image> {
     vec![
         Image {
-            url: format!("https://picsum.photos/seed/fastpotify{seed}/640/640"),
+            url: format!("https://picsum.photos/seed/magicspot{seed}/640/640"),
             width: Some(640),
             height: Some(640),
         },
         Image {
-            url: format!("https://picsum.photos/seed/fastpotify{seed}/300/300"),
+            url: format!("https://picsum.photos/seed/magicspot{seed}/300/300"),
             width: Some(300),
             height: Some(300),
         },
         Image {
-            url: format!("https://picsum.photos/seed/fastpotify{seed}/64/64"),
+            url: format!("https://picsum.photos/seed/magicspot{seed}/64/64"),
             width: Some(64),
             height: Some(64),
         },
@@ -506,7 +506,7 @@ pub fn populate(app: &mut App) {
     app.devices = vec![
         Device {
             id: Some("local-demo".into()),
-            name: "Fastpotify".into(),
+            name: "MagicSpot".into(),
             is_active: false,
             is_restricted: false,
             volume_percent: Some(70),
@@ -728,6 +728,23 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 app.lyrics_following = true;
                 app.show_lyrics_panel = true;
             }
+            "lyrics-expanded" => {
+                app.lyrics_uri = app.now_playing().map(|now| now.uri);
+                app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
+                app.lyrics_following = true;
+                app.show_lyrics_panel = true;
+                app.settings.lyrics_width = 920.0;
+                app.settings.lyrics_font_size = 34;
+            }
+            "lyrics-beta" => app.settings.lyrics_word_progress_beta = true,
+            "neutral" => {
+                app.settings.theme = crate::settings::ThemeChoice::Dark;
+                app.settings.color_theme = crate::settings::ColorTheme::Neutral;
+            }
+            "oled" => {
+                app.settings.theme = crate::settings::ThemeChoice::Oled;
+                app.settings.color_theme = crate::settings::ColorTheme::Aqua;
+            }
             // Titles in scripts the interface font does not cover.
             "scripts" => {
                 let titles = [
@@ -817,7 +834,7 @@ mod tests {
 
     fn accessible_app(name: &str) -> (egui::Context, App) {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-a11y-{name}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-a11y-{name}-{}", std::process::id()));
         let ctx = egui::Context::default();
         ctx.enable_accesskit();
         let waker = crate::backend::Waker::default();
@@ -1359,7 +1376,7 @@ mod tests {
     #[test]
     fn a_toast_is_wide_enough_to_read() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-toast-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-toast-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1432,7 +1449,7 @@ mod tests {
     #[test]
     fn the_shortcuts_dialog_fits_a_small_window() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-shortcuts-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-shortcuts-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1484,7 +1501,7 @@ mod tests {
     #[test]
     fn interface_zoom_puts_minus_on_the_left() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-zoom-order-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-zoom-order-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1564,7 +1581,7 @@ mod tests {
     #[test]
     fn the_frame_rate_dial_steps_between_its_stops() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-fps-dial-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-fps-dial-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1644,7 +1661,7 @@ mod tests {
     #[test]
     fn the_narrowest_panels_keep_their_headers_on_one_row() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-queue-header-test-{}",
+            "magicspot-queue-header-test-{}",
             std::process::id()
         ));
         let dirs = AppDirs {
@@ -1737,7 +1754,7 @@ mod tests {
     #[test]
     fn every_surface_renders_headless() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-render-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-render-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1840,7 +1857,7 @@ mod tests {
     #[test]
     fn a_long_virtual_queue_and_library_still_draw() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-virtual-long-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-virtual-long-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1895,8 +1912,7 @@ mod tests {
     /// row lands in the same add-to-playlist plumbing the row menu uses.
     #[test]
     fn dropping_a_song_on_a_sidebar_playlist_adds_it() {
-        let root =
-            std::env::temp_dir().join(format!("fastpotify-drag-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("magicspot-drag-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -1966,13 +1982,13 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
-    /// The cover and title in the bottom-left player are a song source, not
-    /// just links. The sidebar can therefore receive the same complete row it
-    /// receives when a table song is dragged.
+    /// The cover and title at the left of the contained player are a song
+    /// source, not just links. The sidebar can therefore receive the same
+    /// complete row it receives when a table song is dragged.
     #[test]
     fn dragging_the_now_playing_song_supplies_a_playlist_row() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-now-playing-drag-test-{}",
+            "magicspot-now-playing-drag-test-{}",
             std::process::id()
         ));
         let dirs = AppDirs {
@@ -1998,7 +2014,9 @@ mod tests {
             frame(&ctx, &mut app);
         }
 
-        let start = egui::pos2(40.0, 755.0);
+        // The full-height library rail now owns the first 250 points. The
+        // contained player and its cover start just to the right of it.
+        let start = egui::pos2(290.0, 755.0);
         frame_events(
             &ctx,
             &mut app,
@@ -2019,7 +2037,7 @@ mod tests {
         );
 
         let payload = egui::DragAndDrop::payload::<DragTrack>(&ctx)
-            .expect("dragging the bottom-left song should create a song payload");
+            .expect("dragging the player's left-side song should create a song payload");
         assert_eq!(payload.uri, "spotify:track:trk0");
         assert_eq!(payload.item.uri(), "spotify:track:trk0");
         assert_eq!(payload.from, None, "this is an add, not a playlist move");
@@ -2045,7 +2063,7 @@ mod tests {
     #[test]
     fn dragging_within_the_pinned_block_reorders_it() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-reorder-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-reorder-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -2121,7 +2139,7 @@ mod tests {
     #[test]
     fn dropping_between_unpinned_playlists_creates_the_custom_order() {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-unpinned-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-unpinned-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -2195,8 +2213,7 @@ mod tests {
     /// before asking the server.
     #[test]
     fn dragging_a_row_within_a_playlist_reorders_it() {
-        let root =
-            std::env::temp_dir().join(format!("fastpotify-move-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("magicspot-move-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -2345,7 +2362,7 @@ mod tests {
     #[test]
     fn clicking_search_in_library_shelf_focuses_search_field() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-sidebar-search-focus-test-{}",
+            "magicspot-sidebar-search-focus-test-{}",
             std::process::id()
         ));
         let dirs = AppDirs {

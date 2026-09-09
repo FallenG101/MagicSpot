@@ -1712,7 +1712,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastpotify"
+name = "magicspot"
 version = "0.7.0"
 dependencies = [
  "aes",

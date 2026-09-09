@@ -1,4 +1,4 @@
-//! Where Fastpotify keeps its files.
+//! Where MagicSpot keeps its files.
 //!
 //! Configuration, durable state (Spotify credentials), and disposable caches
 //! (audio, artwork) live in the platform's conventional directories, so
@@ -18,7 +18,7 @@ pub struct AppDirs {
 
 impl AppDirs {
     pub fn discover() -> Self {
-        let project = ProjectDirs::from("me", "paolino", "fastpotify");
+        let project = ProjectDirs::from("me", "paolino", "magicspot");
         match project {
             Some(project) => Self {
                 config: project.config_dir().to_path_buf(),
@@ -31,9 +31,9 @@ impl AppDirs {
             None => {
                 let fallback = std::env::current_dir().unwrap_or_default();
                 Self {
-                    config: fallback.join("fastpotify-config"),
-                    state: fallback.join("fastpotify-state"),
-                    cache: fallback.join("fastpotify-cache"),
+                    config: fallback.join("magicspot-config"),
+                    state: fallback.join("magicspot-state"),
+                    cache: fallback.join("magicspot-cache"),
                 }
             }
         }
@@ -78,7 +78,7 @@ impl AppDirs {
 
     /// The log of the current run, replaced at every start.
     pub fn log_file(&self) -> PathBuf {
-        self.state.join("fastpotify.log")
+        self.state.join("MagicSpot.log")
     }
 
     /// Where a panic is recorded before the process dies of it.

@@ -25,84 +25,93 @@ pub struct Hero<'a> {
     pub round: bool,
 }
 
-pub fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
+fn hero_cover(app: &App, ui: &mut egui::Ui, hero: &Hero<'_>, cover_size: f32) {
     let palette = app.palette;
-    ui.add_space(12.0);
-    let cover_size = if ui.available_width() > 720.0 {
-        212.0
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(cover_size), Sense::hover());
+    let radius = if hero.round { cover_size / 2.0 } else { 12.0 };
+    widgets::paint_shadow(ui, &palette, rect, radius);
+    if hero.liked {
+        super::sidebar::liked_cover(ui, rect, radius);
     } else {
-        160.0
-    };
+        widgets::paint_cover(
+            ui,
+            &palette,
+            hero.image,
+            rect,
+            radius,
+            if hero.round { Icon::User } else { Icon::Music },
+            Some(app.backend.art()),
+        );
+    }
+}
+
+fn hero_details(app: &mut App, ui: &mut egui::Ui, hero: &Hero<'_>, cover_size: f32) {
+    let palette = app.palette;
+    let width = ui.available_width();
+    ui.set_width(width);
+    ui.spacing_mut().item_spacing.y = 6.0;
+    ui.add_space(cover_size * 0.08);
+    theme::text(ui, hero.kind, theme::medium(12.5), palette.text);
+    let mut size = if cover_size > 200.0 { 48.0 } else { 40.0 };
+    let display_title = crate::bidi::display_text(hero.title);
+    loop {
+        let galley =
+            ui.painter()
+                .layout_no_wrap(display_title.to_string(), theme::bold(size), palette.text);
+        if galley.size().x <= width || size <= 22.0 {
+            break;
+        }
+        size -= 6.0;
+    }
+    theme::text(ui, hero.title, theme::bold(size), palette.text);
+    if let Some(description) = &hero.description
+        && !description.is_empty()
+    {
+        theme::text(
+            ui,
+            description.as_str(),
+            theme::regular(13.5),
+            palette.secondary,
+        );
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        for (index, (text, page)) in hero.byline.iter().enumerate() {
+            if index > 0 {
+                theme::text(ui, "•", theme::regular(13.5), palette.secondary);
+            }
+            match page {
+                Some(page) => {
+                    if theme::link(ui, text, theme::semibold(13.5), palette.text).clicked() {
+                        app.actions.push(Action::Open(page.clone()));
+                    }
+                }
+                None => {
+                    theme::text(ui, text, theme::regular(13.5), palette.secondary);
+                }
+            }
+        }
+    });
+}
+
+pub fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
+    ui.add_space(12.0);
+    let wide = ui.available_width() > 720.0;
+    let cover_size = if wide { 236.0 } else { 160.0 };
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 24.0;
-        let (rect, _) = ui.allocate_exact_size(Vec2::splat(cover_size), Sense::hover());
-        let radius = if hero.round { cover_size / 2.0 } else { 6.0 };
-        widgets::paint_shadow(ui, &palette, rect, radius);
-        if hero.liked {
-            super::sidebar::liked_cover(ui, rect, radius);
-        } else {
-            widgets::paint_cover(
-                ui,
-                &palette,
-                hero.image,
-                rect,
-                radius,
-                if hero.round { Icon::User } else { Icon::Music },
-                Some(app.backend.art()),
+        if wide {
+            let details_width = (ui.available_width() - cover_size - 24.0).max(220.0);
+            ui.allocate_ui_with_layout(
+                vec2(details_width, cover_size),
+                Layout::top_down(Align::Min),
+                |ui| hero_details(app, ui, &hero, cover_size),
             );
+            hero_cover(app, ui, &hero, cover_size);
+        } else {
+            hero_cover(app, ui, &hero, cover_size);
+            ui.vertical(|ui| hero_details(app, ui, &hero, cover_size));
         }
-        ui.vertical(|ui| {
-            let width = ui.available_width();
-            ui.set_width(width);
-            ui.spacing_mut().item_spacing.y = 6.0;
-            ui.add_space(cover_size * 0.08);
-            theme::text(ui, hero.kind, theme::medium(12.5), palette.text);
-            let mut size = if cover_size > 200.0 { 56.0 } else { 40.0 };
-            // Measured on the display text: the same glyphs, in the order
-            // they are drawn.
-            let display_title = crate::bidi::display_text(hero.title);
-            loop {
-                let galley = ui.painter().layout_no_wrap(
-                    display_title.to_string(),
-                    theme::bold(size),
-                    palette.text,
-                );
-                if galley.size().x <= width || size <= 22.0 {
-                    break;
-                }
-                size -= 6.0;
-            }
-            theme::text(ui, hero.title, theme::bold(size), palette.text);
-            if let Some(description) = &hero.description
-                && !description.is_empty()
-            {
-                theme::text(
-                    ui,
-                    description.as_str(),
-                    theme::regular(13.5),
-                    palette.secondary,
-                );
-            }
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                for (index, (text, page)) in hero.byline.iter().enumerate() {
-                    if index > 0 {
-                        theme::text(ui, "•", theme::regular(13.5), palette.secondary);
-                    }
-                    match page {
-                        Some(page) => {
-                            if theme::link(ui, text, theme::semibold(13.5), palette.text).clicked()
-                            {
-                                app.actions.push(Action::Open(page.clone()));
-                            }
-                        }
-                        None => {
-                            theme::text(ui, text, theme::regular(13.5), palette.secondary);
-                        }
-                    }
-                }
-            });
-        });
     });
     ui.add_space(20.0);
 }
@@ -1514,7 +1523,7 @@ mod tests {
 
     fn test_app() -> App {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-table-cache-{}-{}",
+            "magicspot-table-cache-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

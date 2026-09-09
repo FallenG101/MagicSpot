@@ -1107,7 +1107,7 @@ mod tests {
     fn an_inactive_connect_device_keeps_its_engine_session() {
         let mut state = LocalState {
             connected: true,
-            active_client: "Fastpotify".into(),
+            active_client: "MagicSpot".into(),
             ..LocalState::default()
         };
 
@@ -1154,7 +1154,7 @@ mod tests {
             buffer_ms: crate::sink::DEFAULT_BUFFER_MS,
             tap: AudioTap::new(),
             eq: crate::eq::shared(),
-            device_name: "Fastpotify".into(),
+            device_name: "MagicSpot".into(),
             bitrate_kbps: 320,
             normalisation: false,
             autoplay: true,

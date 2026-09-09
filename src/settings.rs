@@ -11,6 +11,42 @@ pub enum ThemeChoice {
     Dark,
     Light,
     System,
+    Oled,
+}
+
+/// Accent and surface character, independent of light/dark mode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ColorTheme {
+    #[default]
+    Aqua,
+    Violet,
+    Rose,
+    Amber,
+    Neutral,
+    /// Kept only so settings written by earlier MagicSpot builds can migrate.
+    Oled,
+}
+
+impl ColorTheme {
+    pub const ALL: [Self; 5] = [
+        Self::Aqua,
+        Self::Violet,
+        Self::Rose,
+        Self::Amber,
+        Self::Neutral,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Aqua => "Aqua",
+            Self::Violet => "Violet",
+            Self::Rose => "Rose",
+            Self::Amber => "Amber",
+            Self::Neutral => "Neutral gray",
+            Self::Oled => "Aqua",
+        }
+    }
 }
 
 /// Mini-player visualizer mode.
@@ -35,13 +71,14 @@ impl VisMode {
 }
 
 impl ThemeChoice {
-    pub const ALL: [ThemeChoice; 3] = [Self::Dark, Self::Light, Self::System];
+    pub const ALL: [ThemeChoice; 4] = [Self::Dark, Self::Light, Self::System, Self::Oled];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Dark => "Dark",
             Self::Light => "Light",
             Self::System => "Follow system",
+            Self::Oled => "OLED",
         }
     }
 }
@@ -67,6 +104,7 @@ pub struct Settings {
     pub audio_cache: bool,
     pub audio_cache_mb: u64,
     pub theme: ThemeChoice,
+    pub color_theme: ColorTheme,
     /// Tint the interface with the colour of the playing album's art.
     pub accent_from_art: bool,
     /// Last local volume, 0..=65535.
@@ -79,6 +117,10 @@ pub struct Settings {
     pub sidebar_compact: bool,
     pub sidebar_width: f32,
     pub lyrics_width: f32,
+    /// Lyrics text size in logical points, independent of interface zoom.
+    pub lyrics_font_size: u8,
+    /// Estimate word progress between line timestamps for a karaoke effect.
+    pub lyrics_word_progress_beta: bool,
     pub queue_width: f32,
     /// Use compact single-line rows without cover art in track lists.
     pub tracklist_compact: bool,
@@ -156,7 +198,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            device_name: "Fastpotify".to_string(),
+            device_name: "MagicSpot".to_string(),
             bitrate: 320,
             normalisation: false,
             autoplay: true,
@@ -167,6 +209,7 @@ impl Default for Settings {
             audio_cache: true,
             audio_cache_mb: 1024,
             theme: ThemeChoice::Dark,
+            color_theme: ColorTheme::Aqua,
             accent_from_art: true,
             volume: (u16::MAX as u32 * 70 / 100) as u16,
             sidebar_visible: true,
@@ -174,6 +217,8 @@ impl Default for Settings {
             sidebar_compact: false,
             sidebar_width: 250.0,
             lyrics_width: 360.0,
+            lyrics_font_size: 26,
+            lyrics_word_progress_beta: false,
             queue_width: 360.0,
             tracklist_compact: false,
             search_history: Vec::new(),
@@ -182,7 +227,7 @@ impl Default for Settings {
             personal_app_nudge_at: None,
             playback_authorized: false,
             keep_playing_in_background: true,
-            check_for_updates: true,
+            check_for_updates: false,
             pinned_contexts: Vec::new(),
             sidebar_order: Vec::new(),
             zoom: 1.0,
@@ -219,13 +264,18 @@ fn default_buffer_ms() -> u32 {
 
 impl Settings {
     pub fn load(path: &Path) -> Self {
-        match std::fs::read_to_string(path) {
+        let mut settings = match std::fs::read_to_string(path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|error| {
                 log::warn!("settings at {} are unreadable: {error}", path.display());
                 Self::default()
             }),
             Err(_) => Self::default(),
+        };
+        if settings.color_theme == ColorTheme::Oled {
+            settings.theme = ThemeChoice::Oled;
+            settings.color_theme = ColorTheme::Aqua;
         }
+        settings
     }
 
     pub fn save(&self, path: &Path) {
@@ -270,12 +320,46 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::Settings;
+    use super::{ColorTheme, Settings, ThemeChoice};
+
+    #[test]
+    fn lyrics_size_is_backward_compatible_and_persists() {
+        let older: super::Settings = serde_json::from_str(r#"{"lyrics_width":420.0}"#).unwrap();
+        assert_eq!(older.lyrics_font_size, 26);
+        assert_eq!(older.lyrics_width, 420.0);
+        assert_eq!(older.color_theme, ColorTheme::Aqua);
+        assert!(!older.lyrics_word_progress_beta);
+        let settings = super::Settings {
+            lyrics_font_size: 36,
+            ..older
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let restored: super::Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, settings);
+    }
 
     #[test]
     fn older_settings_keep_the_sidebar_visible() {
         let settings: Settings = serde_json::from_str("{}").unwrap();
         assert!(settings.sidebar_visible);
+    }
+
+    #[test]
+    fn the_old_oled_accent_migrates_to_oled_appearance() {
+        let root = std::env::temp_dir().join(format!(
+            "magicspot-oled-settings-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let path = root.join("settings.json");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&path, r#"{"theme":"dark","color_theme":"oled"}"#).unwrap();
+
+        let settings = Settings::load(&path);
+
+        assert_eq!(settings.theme, ThemeChoice::Oled);
+        assert_eq!(settings.color_theme, ColorTheme::Aqua);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
@@ -499,7 +583,7 @@ mod session_tests {
     #[test]
     fn a_new_session_atomically_replaces_the_previous_one() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-session-test-{}-{:?}",
+            "magicspot-session-test-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));

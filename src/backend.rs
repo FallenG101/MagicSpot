@@ -624,12 +624,12 @@ impl Backend {
         let (event_tx, event_rx) = std::sync::mpsc::channel();
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
-            .thread_name("fastpotify-runtime")
+            .thread_name("magicspot-runtime")
             .enable_all()
             .build()
             .expect("unable to start the async runtime");
         let http = reqwest::Client::builder()
-            .user_agent(concat!("fastpotify/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("MagicSpot/", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(30))
             .build()
             .expect("unable to build the HTTP client");
@@ -640,7 +640,7 @@ impl Backend {
         let worker_art = art.clone();
         let worker_commands = command_tx.clone();
         let thread = std::thread::Builder::new()
-            .name("fastpotify-backend".to_string())
+            .name("magicspot-backend".to_string())
             .spawn(move || {
                 runtime.block_on(async move {
                     let mut worker = Worker::new(
@@ -1473,7 +1473,7 @@ impl Worker {
                     .map_err(|error| error.to_string())?;
                 let info = crate::zeroconf::get_info(&http, &receiver)
                     .map_err(|error| error.to_string())?;
-                crate::zeroconf::add_user(&http, &receiver, &info, &credentials, "Fastpotify")
+                crate::zeroconf::add_user(&http, &receiver, &info, &credentials, "MagicSpot")
                     .map_err(|error| error.to_string())
             })();
             let _ = events.send(Event::ReceiverActivated { name, result });
@@ -2225,7 +2225,7 @@ mod playlist_cache_tests {
     #[tokio::test]
     async fn a_new_checkpoint_atomically_replaces_the_previous_one() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-playlist-cache-test-{}-{:?}",
+            "magicspot-playlist-cache-test-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));

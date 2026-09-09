@@ -12,7 +12,7 @@ use protobuf::Message as _;
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
-    let dirs = fastpotify::paths::AppDirs::discover();
+    let dirs = magicspot::paths::AppDirs::discover();
     let cache = Cache::new(Some(dirs.credentials_dir().as_path()), None, None, None)?;
     let credentials = cache
         .credentials()

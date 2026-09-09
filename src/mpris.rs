@@ -1,4 +1,4 @@
-//! Linux desktop media controls (MPRIS) for Fastpotify.
+//! Linux desktop media controls (MPRIS) for MagicSpot.
 //!
 //! D-Bus runs on its own thread with a local executor and exchanges bounded
 //! messages with the interface, which stays the only owner of playback
@@ -16,7 +16,7 @@ use crate::media::{MediaCommand, MediaState, MediaTrack};
 use crate::player::{Playback, RepeatMode};
 
 const PLAYING_POSITION_INTERVAL: Duration = Duration::from_millis(1000);
-const TRACK_OBJECT_PATH_PREFIX: &str = "/me/paolino/Fastpotify/Track/";
+const TRACK_OBJECT_PATH_PREFIX: &str = "/me/paolino/MagicSpot/Track/";
 
 enum Update {
     State(MediaState),
@@ -36,7 +36,7 @@ impl MediaService {
         let (command_tx, commands) = std::sync::mpsc::channel();
         let wake: std::sync::Arc<dyn Fn() + Send + Sync> = std::sync::Arc::new(wake);
         let spawned = thread::Builder::new()
-            .name("fastpotify-mpris".to_string())
+            .name("magicspot-mpris".to_string())
             .spawn(move || {
                 let runtime = match tokio::runtime::Builder::new_current_thread()
                     .enable_all()
@@ -110,8 +110,8 @@ async fn run(
     commands: Sender<MediaCommand>,
     wake: std::sync::Arc<dyn Fn() + Send + Sync>,
 ) -> mpris_server::zbus::Result<()> {
-    let player = Player::builder("fastpotify")
-        .identity("Fastpotify")
+    let player = Player::builder("magicspot")
+        .identity("MagicSpot")
         .desktop_entry(desktop_entry())
         .can_raise(true)
         .can_quit(true)
@@ -311,9 +311,9 @@ fn uri_from_object_path(path: &str) -> Option<String> {
 /// the app id, and a desktop looking it up by the plain name finds nothing.
 fn desktop_entry() -> &'static str {
     if std::path::Path::new("/.flatpak-info").exists() {
-        "rocks.fastpotify.Fastpotify"
+        "rocks.magicspot.MagicSpot"
     } else {
-        "fastpotify"
+        "magicspot"
     }
 }
 

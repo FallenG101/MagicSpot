@@ -18,12 +18,20 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         None => palette.panel,
     };
     egui::Panel::bottom("player-bar")
-        .exact_size(theme::PLAYER_BAR_HEIGHT)
+        .exact_size(theme::PLAYER_BAR_HEIGHT + 12.0)
         .resizable(false)
         .show_separator_line(false)
         .frame(
             Frame::new()
                 .fill(fill)
+                .stroke(egui::Stroke::new(1.0, palette.outline))
+                .corner_radius(14.0)
+                .outer_margin(Margin {
+                    left: 10,
+                    right: 10,
+                    top: 4,
+                    bottom: 8,
+                })
                 .inner_margin(Margin::symmetric(16, 0)),
         )
         .show(ui, |ui| {

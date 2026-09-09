@@ -29,46 +29,164 @@ pub struct Palette {
 
 impl Palette {
     pub fn dark() -> Self {
-        Self {
-            dark: true,
-            window: Color32::from_rgb(0x0f, 0x11, 0x14),
-            panel: Color32::from_rgb(0x15, 0x18, 0x1c),
-            surface: Color32::from_rgb(0x1d, 0x21, 0x27),
-            surface_hover: Color32::from_rgb(0x26, 0x2b, 0x33),
-            surface_active: Color32::from_rgb(0x2f, 0x35, 0x3f),
-            outline: Color32::from_rgb(0x2a, 0x30, 0x38),
-            text: Color32::from_rgb(0xf2, 0xf4, 0xf6),
-            secondary: Color32::from_rgb(0xa9, 0xb1, 0xbc),
-            dim: Color32::from_rgb(0x6e, 0x77, 0x84),
-            accent: Color32::from_rgb(0x1e, 0xd7, 0x60),
-            accent_hover: Color32::from_rgb(0x3c, 0xe8, 0x7a),
-            on_accent: Color32::from_rgb(0x0a, 0x14, 0x0e),
-            danger: Color32::from_rgb(0xf5, 0x71, 0x7f),
-            warning: Color32::from_rgb(0xf2, 0xb8, 0x5c),
-            overlay: Color32::from_rgb(0x22, 0x27, 0x2e),
-            shadow: Color32::from_black_alpha(140),
-        }
+        Self::for_theme(true, crate::settings::ColorTheme::Aqua, false)
     }
 
     pub fn light() -> Self {
-        Self {
-            dark: false,
-            window: Color32::from_rgb(0xf8, 0xf9, 0xfb),
-            panel: Color32::from_rgb(0xff, 0xff, 0xff),
-            surface: Color32::from_rgb(0xee, 0xf0, 0xf3),
-            surface_hover: Color32::from_rgb(0xe3, 0xe6, 0xeb),
-            surface_active: Color32::from_rgb(0xd7, 0xdb, 0xe1),
-            outline: Color32::from_rgb(0xdd, 0xe1, 0xe6),
-            text: Color32::from_rgb(0x14, 0x17, 0x1a),
-            secondary: Color32::from_rgb(0x53, 0x5b, 0x66),
-            dim: Color32::from_rgb(0x8b, 0x93, 0x9e),
-            accent: Color32::from_rgb(0x15, 0xa6, 0x4a),
-            accent_hover: Color32::from_rgb(0x12, 0x8f, 0x40),
-            on_accent: Color32::WHITE,
-            danger: Color32::from_rgb(0xd6, 0x3b, 0x4c),
-            warning: Color32::from_rgb(0xb8, 0x7a, 0x14),
-            overlay: Color32::from_rgb(0xff, 0xff, 0xff),
-            shadow: Color32::from_black_alpha(50),
+        Self::for_theme(false, crate::settings::ColorTheme::Aqua, false)
+    }
+
+    pub fn for_theme(dark: bool, theme: crate::settings::ColorTheme, oled: bool) -> Self {
+        let (accent, accent_hover, on_accent) = match (dark, theme) {
+            (true, crate::settings::ColorTheme::Aqua) => (
+                Color32::from_rgb(0x55, 0xe6, 0xdf),
+                Color32::from_rgb(0x86, 0xf3, 0xed),
+                Color32::from_rgb(0x05, 0x23, 0x25),
+            ),
+            (false, crate::settings::ColorTheme::Aqua) => (
+                Color32::from_rgb(0x00, 0x9f, 0xa3),
+                Color32::from_rgb(0x00, 0x7f, 0x84),
+                Color32::WHITE,
+            ),
+            (true, crate::settings::ColorTheme::Violet) => (
+                Color32::from_rgb(0xb6, 0x91, 0xff),
+                Color32::from_rgb(0xcb, 0xb0, 0xff),
+                Color32::from_rgb(0x16, 0x0e, 0x28),
+            ),
+            (false, crate::settings::ColorTheme::Violet) => (
+                Color32::from_rgb(0x75, 0x43, 0xc6),
+                Color32::from_rgb(0x60, 0x35, 0xa8),
+                Color32::WHITE,
+            ),
+            (true, crate::settings::ColorTheme::Rose) => (
+                Color32::from_rgb(0xff, 0x82, 0xae),
+                Color32::from_rgb(0xff, 0xa8, 0xc5),
+                Color32::from_rgb(0x2d, 0x0e, 0x19),
+            ),
+            (false, crate::settings::ColorTheme::Rose) => (
+                Color32::from_rgb(0xc9, 0x3f, 0x72),
+                Color32::from_rgb(0xa8, 0x2f, 0x5c),
+                Color32::WHITE,
+            ),
+            (true, crate::settings::ColorTheme::Amber) => (
+                Color32::from_rgb(0xff, 0xc8, 0x5c),
+                Color32::from_rgb(0xff, 0xda, 0x88),
+                Color32::from_rgb(0x2b, 0x1a, 0x03),
+            ),
+            (false, crate::settings::ColorTheme::Amber) => (
+                Color32::from_rgb(0xb8, 0x72, 0x00),
+                Color32::from_rgb(0x96, 0x5d, 0x00),
+                Color32::WHITE,
+            ),
+            (true, crate::settings::ColorTheme::Neutral) => (
+                Color32::from_rgb(0xd8, 0xdc, 0xe2),
+                Color32::WHITE,
+                Color32::from_rgb(0x18, 0x1a, 0x1e),
+            ),
+            (false, crate::settings::ColorTheme::Neutral) => (
+                Color32::from_rgb(0x3f, 0x45, 0x4d),
+                Color32::from_rgb(0x25, 0x29, 0x2f),
+                Color32::WHITE,
+            ),
+            (_, crate::settings::ColorTheme::Oled) => (
+                Color32::from_rgb(0x66, 0xee, 0xe8),
+                Color32::from_rgb(0x9a, 0xff, 0xfa),
+                Color32::BLACK,
+            ),
+        };
+        if oled {
+            return Self {
+                dark: true,
+                window: Color32::BLACK,
+                panel: Color32::BLACK,
+                surface: Color32::from_rgb(0x0c, 0x0c, 0x0d),
+                surface_hover: Color32::from_rgb(0x17, 0x17, 0x19),
+                surface_active: Color32::from_rgb(0x23, 0x23, 0x26),
+                outline: Color32::from_rgb(0x26, 0x26, 0x29),
+                text: Color32::from_rgb(0xf5, 0xf6, 0xf7),
+                secondary: Color32::from_rgb(0xa7, 0xaa, 0xb0),
+                dim: Color32::from_rgb(0x62, 0x65, 0x6b),
+                accent,
+                accent_hover,
+                on_accent,
+                danger: Color32::from_rgb(0xff, 0x70, 0x7e),
+                warning: Color32::from_rgb(0xff, 0xc4, 0x62),
+                overlay: Color32::from_rgb(0x08, 0x08, 0x09),
+                shadow: Color32::from_black_alpha(220),
+            };
+        }
+        if dark {
+            let (window, panel, surface) = match theme {
+                crate::settings::ColorTheme::Aqua => (
+                    Color32::from_rgb(0x0a, 0x12, 0x15),
+                    Color32::from_rgb(0x0f, 0x1a, 0x1e),
+                    Color32::from_rgb(0x17, 0x25, 0x2a),
+                ),
+                crate::settings::ColorTheme::Violet => (
+                    Color32::from_rgb(0x10, 0x0f, 0x16),
+                    Color32::from_rgb(0x18, 0x16, 0x21),
+                    Color32::from_rgb(0x23, 0x20, 0x2d),
+                ),
+                crate::settings::ColorTheme::Rose => (
+                    Color32::from_rgb(0x15, 0x0e, 0x12),
+                    Color32::from_rgb(0x1f, 0x15, 0x1a),
+                    Color32::from_rgb(0x2b, 0x1e, 0x24),
+                ),
+                crate::settings::ColorTheme::Amber => (
+                    Color32::from_rgb(0x15, 0x11, 0x0b),
+                    Color32::from_rgb(0x1e, 0x19, 0x10),
+                    Color32::from_rgb(0x2a, 0x23, 0x17),
+                ),
+                crate::settings::ColorTheme::Neutral => (
+                    Color32::from_rgb(0x12, 0x13, 0x15),
+                    Color32::from_rgb(0x19, 0x1b, 0x1f),
+                    Color32::from_rgb(0x23, 0x26, 0x2b),
+                ),
+                crate::settings::ColorTheme::Oled => (
+                    Color32::from_rgb(0x0a, 0x12, 0x15),
+                    Color32::from_rgb(0x0f, 0x1a, 0x1e),
+                    Color32::from_rgb(0x17, 0x25, 0x2a),
+                ),
+            };
+            Self {
+                dark: true,
+                window,
+                panel,
+                surface,
+                surface_hover: blend_color(surface, Color32::WHITE, 0.07),
+                surface_active: blend_color(surface, Color32::WHITE, 0.13),
+                outline: blend_color(surface, Color32::WHITE, 0.10),
+                text: Color32::from_rgb(0xf2, 0xf4, 0xf6),
+                secondary: Color32::from_rgb(0xa9, 0xb1, 0xbc),
+                dim: Color32::from_rgb(0x6e, 0x77, 0x84),
+                accent,
+                accent_hover,
+                on_accent,
+                danger: Color32::from_rgb(0xf5, 0x71, 0x7f),
+                warning: Color32::from_rgb(0xf2, 0xb8, 0x5c),
+                overlay: Color32::from_rgb(0x22, 0x27, 0x2e),
+                shadow: Color32::from_black_alpha(140),
+            }
+        } else {
+            Self {
+                dark: false,
+                window: Color32::from_rgb(0xf8, 0xf9, 0xfb),
+                panel: Color32::from_rgb(0xff, 0xff, 0xff),
+                surface: Color32::from_rgb(0xee, 0xf0, 0xf3),
+                surface_hover: Color32::from_rgb(0xe3, 0xe6, 0xeb),
+                surface_active: Color32::from_rgb(0xd7, 0xdb, 0xe1),
+                outline: Color32::from_rgb(0xdd, 0xe1, 0xe6),
+                text: Color32::from_rgb(0x14, 0x17, 0x1a),
+                secondary: Color32::from_rgb(0x53, 0x5b, 0x66),
+                dim: Color32::from_rgb(0x8b, 0x93, 0x9e),
+                accent,
+                accent_hover,
+                on_accent,
+                danger: Color32::from_rgb(0xd6, 0x3b, 0x4c),
+                warning: Color32::from_rgb(0xb8, 0x7a, 0x14),
+                overlay: Color32::from_rgb(0xff, 0xff, 0xff),
+                shadow: Color32::from_black_alpha(50),
+            }
         }
     }
 
@@ -91,6 +209,10 @@ impl Palette {
         };
         Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
     }
+}
+
+fn blend_color(from: Color32, to: Color32, amount: f32) -> Color32 {
+    Color32::from(egui::Rgba::from(from) * (1.0 - amount) + egui::Rgba::from(to) * amount)
 }
 
 pub const RADIUS: u8 = 8;
@@ -214,10 +336,16 @@ pub fn apply(ctx: &egui::Context, palette: &Palette) {
     use egui::FontFamily::{Monospace, Proportional};
     use egui::{FontId, TextStyle};
     style.text_styles = [
-        (TextStyle::Small, FontId::new(11.5, Proportional)),
-        (TextStyle::Body, FontId::new(14.0, Proportional)),
-        (TextStyle::Button, FontId::new(14.0, Proportional)),
-        (TextStyle::Heading, FontId::new(22.0, Proportional)),
+        (TextStyle::Small, FontId::new(12.0, Proportional)),
+        (TextStyle::Body, FontId::new(14.5, Proportional)),
+        (
+            TextStyle::Button,
+            FontId::new(14.0, egui::FontFamily::Name(INTER_MEDIUM.into())),
+        ),
+        (
+            TextStyle::Heading,
+            FontId::new(23.0, egui::FontFamily::Name(INTER_SEMIBOLD.into())),
+        ),
         (TextStyle::Monospace, FontId::new(13.0, Monospace)),
     ]
     .into();
@@ -326,7 +454,7 @@ macro_rules! icons {
     ($($variant:ident => $file:literal),* $(,)?) => {
         &[$((
             Icon::$variant,
-            concat!("bytes://fastpotify-icon-", $file, ".svg"),
+            concat!("bytes://MagicSpot-icon-", $file, ".svg"),
             include_bytes!(concat!("../assets/icons/", $file, ".svg")).as_slice(),
         )),*]
     };
@@ -600,7 +728,7 @@ pub fn icon_button(
 /// Horizontal offset that optically centers play triangles.
 ///
 /// Lucide includes a 1/24-width shift; a measured 3% shift centers the icon at
-/// Fastpotify's sizes. Use this everywhere instead of per-call adjustments.
+/// MagicSpot's sizes. Use this everywhere instead of per-call adjustments.
 pub fn play_glyph_offset(icon: Icon, icon_size: f32) -> Vec2 {
     if matches!(icon, Icon::PlayFilled | Icon::Play) {
         Vec2::new(icon_size * (0.03 - 1.0 / 24.0), 0.0)

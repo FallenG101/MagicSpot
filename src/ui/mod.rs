@@ -44,10 +44,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         window_resize(ui);
         return;
     }
-    player_bar::show(app, ui);
     if app.settings.sidebar_visible {
         sidebar::show(app, ui);
     }
+    player_bar::show(app, ui);
     if app.show_queue_panel {
         queue::side_panel(app, ui);
     }
@@ -58,12 +58,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     devices::popup(app, ctx);
     dialogs::show(app, ctx);
     widgets::drag_ghost(ctx, &app.palette);
-    toasts(app, ctx, theme::PLAYER_BAR_HEIGHT + 16.0);
+    toasts(app, ctx, theme::PLAYER_BAR_HEIGHT + 28.0);
     window_controls(ui, &app.palette);
     window_resize(ui);
 }
 
 fn page_tint(app: &mut App) -> Option<Color32> {
+    if app.settings.color_theme == crate::settings::ColorTheme::Neutral {
+        return None;
+    }
     let page = app.page().clone();
     let image = match &page {
         Page::Playlist(id) => app
@@ -108,51 +111,64 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
     egui::CentralPanel::default()
         .frame(Frame::new().fill(palette.window))
         .show(ui, |ui| {
-            let rect = ui.max_rect();
-            if let Some(tint) = tint {
-                let strength = if matches!(
-                    app.page(),
-                    Page::Home | Page::Search | Page::Settings | Page::Queue
-                ) {
-                    0.45
-                } else {
-                    0.85
-                };
-                let top = blend(palette.window, tint, strength);
-                let header = Rect::from_min_size(rect.min, vec2(rect.width(), 340.0));
-                widgets::paint_vertical_gradient(ui, header, top, palette.window);
-            }
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
             topbar::show(app, ui);
             let page = app.page().clone();
-            egui::ScrollArea::vertical()
-                .id_salt(("page", page.encode()))
-                .auto_shrink([false, false])
+            Frame::new()
+                .fill(palette.panel)
+                .stroke(Stroke::new(1.0, palette.outline))
+                .corner_radius(CornerRadius::same(14))
+                .outer_margin(Margin {
+                    left: 10,
+                    right: 10,
+                    top: 2,
+                    bottom: 8,
+                })
                 .show(ui, |ui| {
-                    Frame::new()
-                        .inner_margin(Margin {
-                            left: widgets::PAGE_PADDING as i8,
-                            right: widgets::PAGE_PADDING as i8,
-                            top: 4,
-                            bottom: 48,
-                        })
+                    let rect = ui.max_rect();
+                    if let Some(tint) = tint {
+                        let strength = if matches!(
+                            app.page(),
+                            Page::Home | Page::Search | Page::Settings | Page::Queue
+                        ) {
+                            0.45
+                        } else {
+                            0.85
+                        };
+                        let top = blend(palette.panel, tint, strength);
+                        let header = Rect::from_min_size(rect.min, vec2(rect.width(), 340.0));
+                        widgets::paint_vertical_gradient(ui, header, top, palette.panel);
+                    }
+                    egui::ScrollArea::vertical()
+                        .id_salt(("page", page.encode()))
+                        .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            ui.set_min_width(ui.available_width());
-                            match page {
-                                Page::Home => home::show(app, ui),
-                                Page::TopSongs => collection::top_songs(app, ui),
-                                Page::Search => search::show(app, ui),
-                                Page::LikedSongs => collection::liked(app, ui),
-                                Page::Albums | Page::Artists | Page::Podcasts | Page::Episodes => {
-                                    library::show(app, ui, page)
-                                }
-                                Page::Playlist(id) => collection::playlist(app, ui, &id),
-                                Page::Album(id) => collection::album(app, ui, &id),
-                                Page::Artist(id) => artist::show(app, ui, &id),
-                                Page::Show(id) => show::show(app, ui, &id),
-                                Page::Queue => queue::page(app, ui),
-                                Page::Settings => settings::show(app, ui),
-                            }
+                            Frame::new()
+                                .inner_margin(Margin {
+                                    left: widgets::PAGE_PADDING as i8,
+                                    right: widgets::PAGE_PADDING as i8,
+                                    top: 4,
+                                    bottom: 48,
+                                })
+                                .show(ui, |ui| {
+                                    ui.set_min_width(ui.available_width());
+                                    match page {
+                                        Page::Home => home::show(app, ui),
+                                        Page::TopSongs => collection::top_songs(app, ui),
+                                        Page::Search => search::show(app, ui),
+                                        Page::LikedSongs => collection::liked(app, ui),
+                                        Page::Albums
+                                        | Page::Artists
+                                        | Page::Podcasts
+                                        | Page::Episodes => library::show(app, ui, page),
+                                        Page::Playlist(id) => collection::playlist(app, ui, &id),
+                                        Page::Album(id) => collection::album(app, ui, &id),
+                                        Page::Artist(id) => artist::show(app, ui, &id),
+                                        Page::Show(id) => show::show(app, ui, &id),
+                                        Page::Queue => queue::page(app, ui),
+                                        Page::Settings => settings::show(app, ui),
+                                    }
+                                });
                         });
                 });
         });
@@ -204,13 +220,16 @@ pub(super) struct WindowControlsReservation {
     pub lyrics_top: f32,
 }
 
-const fn windows_chrome_visible(on_windows: bool, fullscreen: bool) -> bool {
-    on_windows && !fullscreen
+const fn windows_chrome_visible(on_windows: bool, _fullscreen: bool) -> bool {
+    // Keep an escape hatch visible even if a Windows compositor reports a
+    // maximized borderless window as fullscreen. MagicSpot has no normal-app
+    // fullscreen mode, and losing these controls strands the window.
+    on_windows
 }
 
 fn windows_chrome_visible_here(ctx: &egui::Context) -> bool {
-    let fullscreen = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
-    windows_chrome_visible(cfg!(windows), fullscreen)
+    let _ = ctx;
+    windows_chrome_visible(cfg!(windows), false)
 }
 
 const fn windows_controls_reservation(
@@ -429,7 +448,7 @@ mod window_chrome_tests {
     #[test]
     fn chrome_visibility_matches_window_state() {
         assert!(windows_chrome_visible(true, false));
-        assert!(!windows_chrome_visible(true, true));
+        assert!(windows_chrome_visible(true, true));
         assert!(!windows_chrome_visible(false, false));
         assert!(window_resize_enabled(true, false, false));
         assert!(!window_resize_enabled(true, false, true));
@@ -469,7 +488,7 @@ mod window_chrome_tests {
             WindowControlsReservation {
                 topbar_width: 0.0,
                 topbar_top: 0.0,
-                queue_top: 0.0,
+                queue_top: WINDOWS_WINDOW_CONTROLS_HEIGHT,
                 lyrics_top: 0.0,
             }
         );

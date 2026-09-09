@@ -1,20 +1,20 @@
 [package]
-name = "fastpotify"
+name = "magicspot"
 version = "0.7.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
 description = "A native Spotify client"
-repository = "https://github.com/crmne/fastpotify"
+repository = "https://github.com/FallenG101/MagicSpot"
 keywords = ["spotify", "music", "egui", "librespot", "player"]
 categories = ["multimedia::audio"]
 
 [lib]
-name = "fastpotify"
+name = "magicspot"
 path = "src/lib.rs"
 
 [[bin]]
-name = "fastpotify"
+name = "magicspot"
 path = "src/main.rs"
 
 [dependencies]
@@ -66,7 +66,7 @@ raw-window-handle = { version = "0.6", optional = true }
 # librespot-core depends on hyper-proxy2 for HTTP proxy support, whose only
 # published release (0.1.0) pins rustls 0.22 and so drags in rustls-webpki
 # 0.102, which carries advisories against its CRL and name-constraint
-# handling. Fastpotify never configures a proxy (SessionConfig.proxy stays
+# handling. MagicSpot never configures a proxy (SessionConfig.proxy stays
 # None), so that TLS client is compiled in but never used to verify anything.
 # Every connection this app actually makes (the Web API through reqwest, and
 # librespot's own sessions) goes through rustls 0.23 with a patched
@@ -172,7 +172,7 @@ opt-level = 0
 # explicit CMAKE_GENERATOR win. Drop when upstream takes the change.
 [patch.crates-io]
 projectm-sys = { git = "https://github.com/crmne/projectm-rs", branch = "respect-cmake-generator" }
-# librespot 0.8.0 plus the small patches Fastpotify needs: queue controls,
+# librespot 0.8.0 plus the small patches MagicSpot inherits: queue controls,
 # normalisation-factor reporting for the visualisers, and a distinct event
 # when Spotify refuses an audio key, and a connection deadline that includes
 # socket setup. Every librespot crate comes from the

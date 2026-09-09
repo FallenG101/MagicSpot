@@ -341,7 +341,7 @@ pub fn is_preset(path: &Path) -> bool {
 /// Returns how many were written.
 pub fn fetch_pack(pack: &Pack, folder: &Path) -> Result<usize, String> {
     let http = reqwest::blocking::Client::builder()
-        .user_agent(concat!("fastpotify/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("MagicSpot/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(300))
         .build()
         .map_err(|error| error.to_string())?;
@@ -379,7 +379,7 @@ mod tests {
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("fastpotify-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("magicspot-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

@@ -178,7 +178,7 @@ pub struct App {
     /// The window should close and reopen at once as the other kind: the
     /// big window or the Winamp mini player.
     pub switch_intent: bool,
-    /// Commands from control clients (a second `fastpotify <verb>` launch,
+    /// Commands from control clients (a second `MagicSpot <verb>` launch,
     /// a Raycast script), on the platforms where they do not arrive through
     /// MPRIS. Drained every frame.
     control_commands: Option<std::sync::Arc<std::sync::Mutex<Vec<ControlCommand>>>>,
@@ -677,6 +677,7 @@ impl App {
             ThemeChoice::Dark => egui::ThemePreference::Dark,
             ThemeChoice::Light => egui::ThemePreference::Light,
             ThemeChoice::System => egui::ThemePreference::System,
+            ThemeChoice::Oled => egui::ThemePreference::Dark,
         });
         self.applied_dark = None;
         self.winamp.forget_textures();
@@ -1229,7 +1230,9 @@ impl App {
 
     /// The colour to tint the interface with, from the playing art.
     pub fn now_playing_tint(&self) -> Option<Color32> {
-        if !self.settings.accent_from_art {
+        if !self.settings.accent_from_art
+            || self.settings.color_theme == crate::settings::ColorTheme::Neutral
+        {
             return None;
         }
         let now = self.now_playing()?;
@@ -1344,14 +1347,14 @@ impl App {
                     match result {
                         Ok(Some(notice)) => {
                             if manual || self.update.as_ref() != Some(&notice) {
-                                self.toast(format!("Fastpotify {} is available", notice.version));
+                                self.toast(format!("MagicSpot {} is available", notice.version));
                             }
                             self.update = Some(notice);
                         }
                         Ok(None) => {
                             self.update = None;
                             if manual {
-                                self.toast("Fastpotify is up to date");
+                                self.toast("MagicSpot is up to date");
                             } else {
                                 log::debug!("this is the newest release");
                             }
@@ -2176,13 +2179,10 @@ impl App {
     }
 
     fn apply_theme(&mut self, ctx: &egui::Context) {
-        let dark = ctx.theme() == egui::Theme::Dark;
+        let oled = self.settings.theme == ThemeChoice::Oled;
+        let dark = oled || ctx.theme() == egui::Theme::Dark;
         if self.applied_dark != Some(dark) {
-            self.palette = if dark {
-                Palette::dark()
-            } else {
-                Palette::light()
-            };
+            self.palette = Palette::for_theme(dark, self.settings.color_theme, oled);
             theme::apply(ctx, &self.palette);
             self.applied_dark = Some(dark);
             self.accents.clear();
@@ -4320,7 +4320,7 @@ impl App {
             }
             _ => {
                 self.pending_link = None;
-                self.toast_error("Fastpotify cannot open this kind of Spotify link");
+                self.toast_error("MagicSpot cannot open this kind of Spotify link");
             }
         }
     }
@@ -5766,10 +5766,12 @@ impl App {
             Action::CheckForUpdates => self.check_for_updates(true),
             Action::SettingsChanged => {
                 self.settings_dirty = true;
+                self.applied_dark = None;
                 ctx.set_theme(match self.settings.theme {
                     ThemeChoice::Dark => egui::ThemePreference::Dark,
                     ThemeChoice::Light => egui::ThemePreference::Light,
                     ThemeChoice::System => egui::ThemePreference::System,
+                    ThemeChoice::Oled => egui::ThemePreference::Dark,
                 });
             }
             Action::RestartEngine => {
@@ -6227,9 +6229,9 @@ impl App {
     /// Keeps the current track in the window and taskbar title (#94).
     fn sync_window_title(&mut self, ctx: &egui::Context) {
         let title = match self.now_playing().filter(|now| now.playing) {
-            Some(now) if now.subtitle.is_empty() => format!("{} - Fastpotify", now.title),
+            Some(now) if now.subtitle.is_empty() => format!("{} - MagicSpot", now.title),
             Some(now) => format!("{} - {}", now.subtitle, now.title),
-            None => "Fastpotify".to_string(),
+            None => "MagicSpot".to_string(),
         };
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -7839,7 +7841,7 @@ mod tests {
 
     fn test_app(name: &str) -> App {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-{name}-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-{name}-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         App::new(
             &Waker::default(),
@@ -8026,7 +8028,7 @@ mod tests {
     #[test]
     fn the_queue_comes_back_after_a_restart() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-queue-restart-test-{}",
+            "magicspot-queue-restart-test-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&root);
@@ -8219,7 +8221,7 @@ mod tests {
         assert!(!app.window_hidden, "a window this app still owns");
 
         // #when something asks for the window: the Dock, the tray, or
-        // `fastpotify show`
+        // `MagicSpot show`
         let mut output = ctx.run_ui(Default::default(), |ui| {
             app.apply(Action::ShowWindow, ui.ctx());
         });
@@ -8276,7 +8278,7 @@ mod tests {
 
     fn headless_app() -> App {
         let root =
-            std::env::temp_dir().join(format!("fastpotify-volume-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("magicspot-volume-test-{}", std::process::id()));
         let dirs = AppDirs {
             config: root.join("config"),
             state: root.join("state"),
@@ -8421,7 +8423,7 @@ mod tests {
         assert_eq!(app.update, None);
         assert_eq!(
             app.toasts.last().map(|toast| toast.message.as_str()),
-            Some("Fastpotify is up to date")
+            Some("MagicSpot is up to date")
         );
 
         app.toasts.clear();
@@ -8470,7 +8472,7 @@ mod tests {
         );
         assert_eq!(
             app.toasts.last().map(|toast| toast.message.as_str()),
-            Some("Fastpotify 1.2.3 is available")
+            Some("MagicSpot 1.2.3 is available")
         );
     }
 
@@ -9544,7 +9546,7 @@ mod tests {
                 "unknown",
                 // Local playback is this computer, which Spotify has not
                 // named because it is not a remote device.
-                "Fastpotify",
+                "MagicSpot",
             ]
         );
         // No devices seen yet is an empty array, not an empty string, so a
@@ -9834,7 +9836,7 @@ mod tests {
     #[test]
     fn the_last_playlist_tree_stays_visible_for_its_account() {
         let root = std::env::temp_dir().join(format!(
-            "fastpotify-rootlist-restart-test-{}",
+            "magicspot-rootlist-restart-test-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&root);

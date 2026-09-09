@@ -45,12 +45,12 @@ fn glew_library(lib: &std::path::Path) -> Option<&'static str> {
 fn main() {
     #[cfg(windows)]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        println!("cargo:rerun-if-changed=packaging/windows/fastpotify.ico");
+        println!("cargo:rerun-if-changed=packaging/windows/magicspot.ico");
         let mut resource = winresource::WindowsResource::new();
         resource
-            .set_icon("packaging/windows/fastpotify.ico")
-            .set("ProductName", "Fastpotify")
-            .set("FileDescription", "Fastpotify");
+            .set_icon("packaging/windows/magicspot.ico")
+            .set("ProductName", "MagicSpot")
+            .set("FileDescription", "MagicSpot");
         if let Err(error) = resource.compile() {
             println!("cargo:warning=Windows resources not embedded: {error}");
         }

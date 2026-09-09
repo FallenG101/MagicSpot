@@ -5,7 +5,8 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/crmne/fastpotify/releases/latest";
+// A fork must never offer upstream binaries as its own updates.
+const LATEST_RELEASE_URL: Option<&str> = None;
 
 /// Update-check interval.
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
@@ -26,8 +27,10 @@ struct LatestRelease {
 
 /// The newest release, when it is newer than this build.
 pub async fn newer_release(http: &reqwest::Client) -> Result<Option<Release>> {
+    let url = LATEST_RELEASE_URL
+        .context("MagicSpot updates are not configured. Build from your local source.")?;
     let latest: LatestRelease = http
-        .get(LATEST_RELEASE_URL)
+        .get(url)
         .header("Accept", "application/vnd.github+json")
         .send()
         .await?

@@ -2,20 +2,20 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use fastpotify::{app, backend, paths, settings, single_instance, util};
+use magicspot::{app, backend, paths, settings, single_instance, util};
 
 use clap::Parser;
 
 /// A fast, native Spotify client.
 #[derive(Debug, Parser)]
-#[command(name = "fastpotify", version, about)]
+#[command(name = "magicspot", version, about)]
 struct Cli {
     /// A command for the running instance; without one, the app starts.
     #[command(subcommand)]
     control: Option<Control>,
 
     /// A Spotify link to open: spotify:track:…, or an open.spotify.com
-    /// address. The running Fastpotify opens it when there is one, which
+    /// address. The running MagicSpot opens it when there is one, which
     /// is how the desktop hands links over.
     #[arg(value_name = "LINK")]
     link: Option<String>,
@@ -208,7 +208,7 @@ fn run_control(control: Control) -> i32 {
             0
         }
         Err(error) => {
-            eprintln!("Fastpotify is not running or does not support remote control: {error}");
+            eprintln!("MagicSpot is not running or does not support remote control: {error}");
             1
         }
     }
@@ -218,7 +218,7 @@ fn run_control(control: Control) -> i32 {
 fn run_control(_control: Control) -> i32 {
     eprintln!(
         "On Linux the running instance speaks MPRIS instead; use e.g. \
-         `playerctl --player=fastpotify play-pause`."
+         `playerctl --player=magicspot play-pause`."
     );
     2
 }
@@ -248,7 +248,7 @@ fn format_now_playing(snapshot: &str) -> String {
 }
 
 /// The `devices` snapshot as one line per device, the active one marked.
-/// The id comes first because `fastpotify transfer` is what it is for.
+/// The id comes first because `MagicSpot transfer` is what it is for.
 #[cfg(not(target_os = "linux"))]
 fn format_devices(snapshot: &str) -> String {
     let Ok(devices) = serde_json::from_str::<Vec<serde_json::Value>>(snapshot) else {
@@ -280,8 +280,8 @@ fn main() -> eframe::Result<()> {
     // buffer, and never touches the app's state. Handle it before anything
     // else, including the argument parser, which does not know its flags.
     #[cfg(feature = "milkdrop")]
-    if let Some(args) = fastpotify::milkdrop::child::Args::parse() {
-        std::process::exit(fastpotify::milkdrop::child::run(args));
+    if let Some(args) = magicspot::milkdrop::child::Args::parse() {
+        std::process::exit(magicspot::milkdrop::child::run(args));
     }
 
     let cli = Cli::parse();
@@ -295,7 +295,7 @@ fn main() -> eframe::Result<()> {
     let link = cli
         .link
         .as_deref()
-        .map(|text| match fastpotify::link::parse(text) {
+        .map(|text| match magicspot::link::parse(text) {
             Some(uri) => uri,
             None => {
                 eprintln!("not a Spotify link: {text}");
@@ -303,9 +303,9 @@ fn main() -> eframe::Result<()> {
             }
         });
     let default_filter = if cli.verbose {
-        "info,librespot=info,fastpotify=debug"
+        "info,librespot=info,magicspot=debug"
     } else {
-        "warn,fastpotify=info"
+        "warn,magicspot=info"
     };
     let dirs = paths::AppDirs::discover();
     let dirs_ready = dirs.ensure();
@@ -347,7 +347,7 @@ fn main() -> eframe::Result<()> {
         match single_instance::acquire(&waker, link.as_deref()) {
             single_instance::Outcome::Only(guard) => Some(guard),
             single_instance::Outcome::Surfaced => {
-                log::info!("Fastpotify is already running; asked it to show its window");
+                log::info!("MagicSpot is already running; asked it to show its window");
                 return Ok(());
             }
         }
@@ -359,7 +359,7 @@ fn main() -> eframe::Result<()> {
     // delivers them starts.
     #[cfg(target_os = "macos")]
     if let Some(guard) = &instance {
-        fastpotify::mac_links::install(guard.commands(), waker.clone());
+        magicspot::mac_links::install(guard.commands(), waker.clone());
     }
 
     // A capture run is a throwaway process next to the real one: no tray
@@ -383,8 +383,8 @@ fn main() -> eframe::Result<()> {
     }
     #[cfg(feature = "demo")]
     if demo {
-        fastpotify::demo::populate(&mut app);
-        fastpotify::demo::apply_flags(&mut app, cli.demo_page.as_deref(), cli.demo_show.as_deref());
+        magicspot::demo::populate(&mut app);
+        magicspot::demo::apply_flags(&mut app, cli.demo_page.as_deref(), cli.demo_show.as_deref());
     }
     #[cfg(feature = "demo")]
     let shot = cli.demo_shot.clone().map(|path| Shot {
@@ -414,7 +414,7 @@ fn main() -> eframe::Result<()> {
         #[cfg(not(feature = "demo"))]
         let options = native_options(false, mini, None);
         eframe::run_native(
-            "Fastpotify",
+            "MagicSpot",
             options,
             Box::new(move |cc| {
                 creator_waker.attach(&cc.egui_ctx);
@@ -428,9 +428,9 @@ fn main() -> eframe::Result<()> {
                 // repaint.
                 #[cfg(target_os = "macos")]
                 {
-                    fastpotify::mac_menu::init();
+                    magicspot::mac_menu::init();
                     let ctx = cc.egui_ctx.clone();
-                    fastpotify::mac_menu::set_waker(move || ctx.request_repaint());
+                    magicspot::mac_menu::set_waker(move || ctx.request_repaint());
                 }
                 app.attach(&cc.egui_ctx);
                 Ok(Box::new(Shell {
@@ -477,7 +477,7 @@ fn main() -> eframe::Result<()> {
                     break;
                 }
             }
-            fastpotify::tray::idle(std::time::Duration::from_millis(150));
+            magicspot::tray::idle(std::time::Duration::from_millis(150));
         }
         let quit = {
             let guard = slot.lock().unwrap_or_else(|p| p.into_inner());
@@ -523,7 +523,7 @@ fn log_panics(path: std::path::PathBuf) {
         previous(info);
         let thread = std::thread::current();
         let entry = format!(
-            "{} fastpotify {} on thread {:?}: {info}\n",
+            "{} MagicSpot {} on thread {:?}: {info}\n",
             jiff::Timestamp::now(),
             env!("CARGO_PKG_VERSION"),
             thread.name().unwrap_or("unnamed"),
@@ -551,7 +551,7 @@ struct MiniWindow {
 impl MiniWindow {
     fn wanted(app: &app::App) -> Option<Self> {
         app.settings.winamp_window.then(|| Self {
-            size: fastpotify::ui::winamp::initial_size(&app.settings),
+            size: magicspot::ui::winamp::initial_size(&app.settings),
             position: app.winamp.restore_pos,
             on_top: app.settings.winamp_on_top,
             storage_path: app.dirs.cache.join("winamp.ron"),
@@ -603,8 +603,8 @@ fn native_options(
         app_icon()
     };
     let viewport = egui::ViewportBuilder::default()
-        .with_title("Fastpotify")
-        .with_app_id("fastpotify")
+        .with_title("MagicSpot")
+        .with_app_id("magicspot")
         .with_icon(icon);
     let viewport = match mini {
         Some(mini) => {
@@ -676,7 +676,7 @@ mod native_window_tests {
                 skin_scale: Some(2),
                 ..Default::default()
             };
-            let size = fastpotify::ui::winamp::initial_size(&settings);
+            let size = magicspot::ui::winamp::initial_size(&settings);
             let options = native_options(
                 false,
                 Some(MiniWindow {
@@ -806,9 +806,9 @@ impl eframe::App for Shell {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Some(app) = self.app.as_mut() {
             #[cfg(target_os = "macos")]
-            for command in fastpotify::mac_menu::drain_commands() {
-                use fastpotify::mac_menu::MenuCommand;
-                use fastpotify::model::{Action, Dialog, Page};
+            for command in magicspot::mac_menu::drain_commands() {
+                use magicspot::mac_menu::MenuCommand;
+                use magicspot::model::{Action, Dialog, Page};
                 let action = match command {
                     MenuCommand::PlayPause => Action::TogglePlay,
                     MenuCommand::Next => Action::Next,
@@ -832,7 +832,7 @@ impl eframe::App for Shell {
                     MenuCommand::Forward => Action::Forward,
                     MenuCommand::OpenRepo => {
                         ctx.open_url(egui::OpenUrl::new_tab(
-                            "https://github.com/crmne/fastpotify",
+                            "https://github.com/FallenG101/MagicSpot",
                         ));
                         continue;
                     }
@@ -923,7 +923,7 @@ mod tests {
     #[test]
     fn a_link_and_a_verb_are_told_apart() {
         // #given / #when / #then
-        let launch = Cli::try_parse_from(["fastpotify", "spotify:track:4uLU6hMCjMI75M1A2tKUQC"])
+        let launch = Cli::try_parse_from(["MagicSpot", "spotify:track:4uLU6hMCjMI75M1A2tKUQC"])
             .expect("a link parses");
         assert_eq!(
             launch.link.as_deref(),
@@ -932,7 +932,7 @@ mod tests {
         assert!(launch.control.is_none());
 
         let launch = Cli::try_parse_from([
-            "fastpotify",
+            "MagicSpot",
             "https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3?si=x",
             "--verbose",
         ])
@@ -940,11 +940,11 @@ mod tests {
         assert!(launch.link.is_some());
         assert!(launch.verbose);
 
-        let verb = Cli::try_parse_from(["fastpotify", "next"]).expect("a verb parses");
+        let verb = Cli::try_parse_from(["MagicSpot", "next"]).expect("a verb parses");
         assert!(matches!(verb.control, Some(Control::Next)));
         assert!(verb.link.is_none());
 
-        let bare = Cli::try_parse_from(["fastpotify"]).expect("a plain launch parses");
+        let bare = Cli::try_parse_from(["MagicSpot"]).expect("a plain launch parses");
         assert!(bare.link.is_none() && bare.control.is_none());
     }
 }

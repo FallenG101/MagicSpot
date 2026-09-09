@@ -5,7 +5,7 @@ use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke, Vec2};
 use crate::api::models::pick_image;
 use crate::app::App;
 use crate::model::{Action, Dialog};
-use crate::settings::ThemeChoice;
+use crate::settings::{ColorTheme, ThemeChoice};
 use crate::theme::{self, Icon, Palette};
 
 use super::widgets;
@@ -325,8 +325,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             "Keep music playing when the window closes",
             super::keys::platform_shortcut(
-                "Fastpotify hides to the system tray. Quit from the tray menu or with Ctrl+Q.",
-                "Fastpotify hides to the system tray. Quit from the tray menu or with Cmd+Q.",
+                "MagicSpot hides to the system tray. Quit from the tray menu or with Ctrl+Q.",
+                "MagicSpot hides to the system tray. Quit from the tray menu or with Cmd+Q.",
             ),
             |ui| {
                 if widgets::switch(
@@ -341,23 +341,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
             },
         );
-        widgets::setting_row(
+        theme::text(
             ui,
-            &palette,
-            "Automatic update checks",
-            "Checks GitHub once a day. No personal data is sent.",
-            |ui| {
-                if widgets::switch(
-                    ui,
-                    &palette,
-                    "Automatic update checks",
-                    &mut app.settings.check_for_updates,
-                )
-                .changed()
-                {
-                    changed = true;
-                }
-            },
+            "MagicSpot updates are not configured. Rebuild from local source.",
+            theme::regular(13.0),
+            palette.secondary,
         );
         if cfg!(target_os = "linux") {
             widgets::setting_row(
@@ -493,6 +481,30 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         widgets::setting_row(
             ui,
             &palette,
+            "Colour theme",
+            "Choose MagicSpot's accent and dark surfaces.",
+            |ui| {
+                let options: Vec<(usize, &str)> = ColorTheme::ALL
+                    .iter()
+                    .enumerate()
+                    .map(|(index, theme)| (index, theme.label()))
+                    .collect();
+                let current = ColorTheme::ALL
+                    .iter()
+                    .position(|theme| *theme == app.settings.color_theme)
+                    .unwrap_or_default();
+                if let Some(picked) = widgets::chips(ui, &palette, &options, current)
+                    && let Some(theme) = ColorTheme::ALL.get(picked).copied()
+                    && theme != app.settings.color_theme
+                {
+                    app.settings.color_theme = theme;
+                    changed = true;
+                }
+            },
+        );
+        widgets::setting_row(
+            ui,
+            &palette,
             "Colour from album art",
             "Use the current cover's colour on pages and the player bar.",
             |ui| {
@@ -501,6 +513,42 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     &palette,
                     "Colour from album art",
                     &mut app.settings.accent_from_art,
+                )
+                .changed()
+                {
+                    changed = true;
+                }
+            },
+        );
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Lyrics text size",
+            "Applies at every lyrics panel width.",
+            |ui| {
+                if ui
+                    .add(
+                        egui::Slider::new(&mut app.settings.lyrics_font_size, 20..=44)
+                            .suffix(" pt"),
+                    )
+                    .changed()
+                {
+                    app.lyrics_line_shown = None;
+                    changed = true;
+                }
+            },
+        );
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Word-by-word lyrics (Beta)",
+            "Estimate word timing between synced line timestamps. Off by default.",
+            |ui| {
+                if widgets::switch(
+                    ui,
+                    &palette,
+                    "Word-by-word lyrics beta",
+                    &mut app.settings.lyrics_word_progress_beta,
                 )
                 .changed()
                 {
@@ -627,7 +675,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             },
         );
         let choices = app.winamp.choices.clone();
-        let mut options: Vec<(usize, &str)> = vec![(0, "Fastpotify")];
+        let mut options: Vec<(usize, &str)> = vec![(0, "MagicSpot")];
         options.extend(
             choices
                 .iter()
@@ -710,7 +758,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             &palette,
             "Presets",
             &format!(
-                "{} in {}. Add .milk files here. Fastpotify downloads presets when MilkDrop first opens with an empty folder.",
+                "{} in {}. Add .milk files here. MagicSpot downloads presets when MilkDrop first opens with an empty folder.",
                 match count {
                     0 => "None yet".to_string(),
                     1 => "One preset".to_string(),
@@ -942,13 +990,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui.vertical(|ui| {
                 theme::text(
                     ui,
-                    format!("Fastpotify {}", env!("CARGO_PKG_VERSION")),
+                    format!("MagicSpot {}", env!("CARGO_PKG_VERSION")),
                     theme::semibold(15.0),
                     palette.text,
                 );
                 theme::text(
                     ui,
-                    "Built with Rust, egui, and librespot. Not affiliated with Spotify.",
+                    "Based on Fastpotify by Carmine Paolino (MIT). Built with Rust, egui, and librespot. Not affiliated with Spotify.",
                     theme::regular(13.0),
                     palette.secondary,
                 );
@@ -972,8 +1020,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             {
                 app.actions.push(Action::ShowDialog(Dialog::Shortcuts));
             }
-            if theme::soft_button(ui, &palette, Some(Icon::ExternalLink), "Source code", false)
-                .clicked()
+            if theme::soft_button(
+                ui,
+                &palette,
+                Some(Icon::ExternalLink),
+                "Upstream source",
+                false,
+            )
+            .clicked()
             {
                 ui.ctx()
                     .open_url(egui::OpenUrl::new_tab(env!("CARGO_PKG_REPOSITORY")));

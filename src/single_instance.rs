@@ -15,7 +15,7 @@
 //! control channel. The operating system releases the port when the process
 //! ends.
 //!
-//! On macOS and Windows, clients send one `fastpotify:<verb>` line and receive
+//! On macOS and Windows, clients send one `MagicSpot:<verb>` line and receive
 //! one reply. Commands enter the same action queue as tray and media-key
 //! events. Read commands use snapshots, so the listener thread never accesses
 //! app state. Linux uses MPRIS for these controls.
@@ -29,20 +29,20 @@
 //!
 //! A Spotify link the desktop hands to a second launch reaches the running
 //! instance the same way: `open-link` over the socket, or on Linux the
-//! `Open` method of the `rocks.fastpotify.Instance` interface the guard
+//! `Open` method of the `rocks.magicspot.Instance` interface the guard
 //! serves on its own name.
 
 /// The name held for the lifetime of the running instance.
 #[cfg(target_os = "linux")]
-const INSTANCE_NAME: &str = "rocks.fastpotify.Instance";
+const INSTANCE_NAME: &str = "rocks.magicspot.Instance";
 
 /// The MPRIS player to ask when another instance already holds the name.
 #[cfg(target_os = "linux")]
-const MPRIS_NAME: &str = "org.mpris.MediaPlayer2.fastpotify";
+const MPRIS_NAME: &str = "org.mpris.MediaPlayer2.magicspot";
 
 /// Where the running instance answers `Open` for links, on [`INSTANCE_NAME`].
 #[cfg(target_os = "linux")]
-const INSTANCE_PATH: &str = "/rocks/fastpotify/Instance";
+const INSTANCE_PATH: &str = "/rocks/magicspot/Instance";
 
 pub enum Outcome {
     /// This process is the only instance. Hold the guard until it exits.
@@ -129,18 +129,18 @@ pub const NO_DEVICES: &str = "[]";
 /// Loopback port that marks a running instance on platforms without a bus.
 /// Registered to nothing; chosen high and out of the ephemeral range.
 #[cfg(not(target_os = "linux"))]
-const INSTANCE_PORT: u16 = 47_113;
+const INSTANCE_PORT: u16 = 47_114;
 
 /// Every request and reply starts with this, so a foreign program that
-/// happens to hold the port is never mistaken for Fastpotify.
+/// happens to hold the port is never mistaken for MagicSpot.
 #[cfg(not(target_os = "linux"))]
-const PREFIX: &str = "fastpotify:";
+const PREFIX: &str = "magicspot:";
 #[cfg(not(target_os = "linux"))]
-const OK_REPLY: &str = "fastpotify:ok";
+const OK_REPLY: &str = "magicspot:ok";
 #[cfg(not(target_os = "linux"))]
-const NOW_REPLY: &str = "fastpotify:now ";
+const NOW_REPLY: &str = "magicspot:now ";
 #[cfg(not(target_os = "linux"))]
-const DEVICES_REPLY: &str = "fastpotify:devices ";
+const DEVICES_REPLY: &str = "magicspot:devices ";
 
 /// What the running instance said back.
 #[cfg(not(target_os = "linux"))]
@@ -186,7 +186,7 @@ fn send_to(port: u16, verb: &str) -> std::io::Result<Reply> {
     } else {
         Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "the port is held by something other than Fastpotify",
+            "the port is held by something other than MagicSpot",
         ))
     }
 }
@@ -209,20 +209,20 @@ pub fn acquire(waker: &crate::backend::Waker, link: Option<&str>) -> Outcome {
         Ok(listener) => listener,
         Err(_) => {
             // Raise the existing instance only if the port answers as
-            // Fastpotify. A link goes with the request; an instance from
+            // MagicSpot. A link goes with the request; an instance from
             // before links does not answer that verb, so a plain show
             // follows and the link is dropped rather than the launch.
             let accepted = |reply: Reply| matches!(reply, Reply::Ok);
             let opened =
                 link.is_some_and(|uri| send(&format!("open-link {uri}")).is_ok_and(accepted));
             if link.is_some() && !opened {
-                log::warn!("the running Fastpotify does not take links; asking it to show");
+                log::warn!("the running MagicSpot does not take links; asking it to show");
             }
             let answered = opened || send("show").is_ok_and(accepted);
             if answered {
                 return Outcome::Surfaced;
             }
-            log::warn!("port {INSTANCE_PORT} is busy but not with Fastpotify; running unguarded");
+            log::warn!("port {INSTANCE_PORT} is busy but not with MagicSpot; running unguarded");
             return Outcome::Only(unguarded());
         }
     };
@@ -233,7 +233,7 @@ pub fn acquire(waker: &crate::backend::Waker, link: Option<&str>) -> Outcome {
     let devices = Arc::clone(&guard.devices);
     let waker = waker.clone();
     let spawned = std::thread::Builder::new()
-        .name("fastpotify-instance".to_owned())
+        .name("magicspot-instance".to_owned())
         .spawn(move || serve(listener, &commands, &now_playing, &devices, &waker));
     if let Err(error) = spawned {
         log::warn!("cannot listen for other launches: {error}");
@@ -404,7 +404,7 @@ struct Instance {
 }
 
 #[cfg(target_os = "linux")]
-#[zbus::interface(name = "rocks.fastpotify.Instance")]
+#[zbus::interface(name = "rocks.magicspot.Instance")]
 impl Instance {
     /// Opens the page for a Spotify link and brings the window forward. A
     /// link that is not a page the app has is refused, so the caller can
@@ -465,7 +465,7 @@ pub fn acquire(waker: &crate::backend::Waker, link: Option<&str>) -> Outcome {
         Ok(_) | Err(mpris_server::zbus::Error::NameTaken) => {
             if !raise_running_instance(&connection, link) {
                 log::warn!(
-                    "Fastpotify is already running but did not answer; not starting a second copy"
+                    "MagicSpot is already running but did not answer; not starting a second copy"
                 );
             }
             Outcome::Surfaced
@@ -486,7 +486,7 @@ pub fn acquire(waker: &crate::backend::Waker, link: Option<&str>) -> Outcome {
 fn serve_links(connection: zbus::blocking::Connection, instance: Instance) -> Result<(), String> {
     let (ready_tx, ready_rx) = std::sync::mpsc::channel();
     let spawned = std::thread::Builder::new()
-        .name("fastpotify-links".to_owned())
+        .name("magicspot-links".to_owned())
         .spawn(move || {
             let runtime = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -538,12 +538,12 @@ fn open_in_running_instance(
 ) -> Result<(), String> {
     let (answer_tx, answer_rx) = std::sync::mpsc::channel();
     let spawned = std::thread::Builder::new()
-        .name("fastpotify-open-link".to_owned())
+        .name("magicspot-open-link".to_owned())
         .spawn(move || {
             let opened = connection.call_method(
                 Some(INSTANCE_NAME),
                 INSTANCE_PATH,
-                Some("rocks.fastpotify.Instance"),
+                Some("rocks.magicspot.Instance"),
                 "Open",
                 &(uri.as_str(),),
             );
@@ -587,7 +587,7 @@ fn raise_running_instance(
         );
         if raised.is_ok() {
             if link.is_some() {
-                log::warn!("the running Fastpotify does not take links; asked it to show");
+                log::warn!("the running MagicSpot does not take links; asked it to show");
             }
             return true;
         }
@@ -627,7 +627,7 @@ mod bus_tests {
     #[test]
     fn a_link_reaches_the_running_instance_over_the_bus() {
         // #given an instance answering on its own connection, not the
-        // shared name, so a Fastpotify already running is left alone
+        // shared name, so a MagicSpot already running is left alone
         let Ok(server) = zbus::blocking::Connection::session() else {
             eprintln!("no session bus here; nothing to test");
             return;
@@ -649,7 +649,7 @@ mod bus_tests {
         let opened = client.call_method(
             Some(name.as_str()),
             INSTANCE_PATH,
-            Some("rocks.fastpotify.Instance"),
+            Some("rocks.magicspot.Instance"),
             "Open",
             &("spotify:album:1DFixLWuPkv3KT3TnV35m3",),
         );
@@ -688,104 +688,101 @@ mod tests {
     #[test]
     fn parses_every_control_verb() {
         // #given / #when / #then
-        assert_eq!(command("fastpotify:show\n"), Some(ControlCommand::Show));
+        assert_eq!(command("magicspot:show\n"), Some(ControlCommand::Show));
         assert_eq!(
-            command("fastpotify:playpause"),
+            command("magicspot:playpause"),
             Some(ControlCommand::PlayPause)
         );
-        assert_eq!(command("fastpotify:play"), Some(ControlCommand::Play));
-        assert_eq!(command("fastpotify:pause"), Some(ControlCommand::Pause));
-        assert_eq!(command("fastpotify:next"), Some(ControlCommand::Next));
+        assert_eq!(command("magicspot:play"), Some(ControlCommand::Play));
+        assert_eq!(command("magicspot:pause"), Some(ControlCommand::Pause));
+        assert_eq!(command("magicspot:next"), Some(ControlCommand::Next));
         assert_eq!(
-            command("fastpotify:previous"),
+            command("magicspot:previous"),
             Some(ControlCommand::Previous)
         );
         assert_eq!(
-            command("fastpotify:seek-by -10000"),
+            command("magicspot:seek-by -10000"),
             Some(ControlCommand::SeekBy(-10_000))
         );
         assert_eq!(
-            command("fastpotify:volume-by +5"),
+            command("magicspot:volume-by +5"),
             Some(ControlCommand::VolumeBy(5))
         );
         assert_eq!(
-            command("fastpotify:volume-set 40"),
+            command("magicspot:volume-set 40"),
             Some(ControlCommand::SetVolume(40))
         );
-        assert_eq!(command("fastpotify:mute"), Some(ControlCommand::ToggleMute));
+        assert_eq!(command("magicspot:mute"), Some(ControlCommand::ToggleMute));
         assert_eq!(
-            command("fastpotify:shuffle"),
+            command("magicspot:shuffle"),
             Some(ControlCommand::ToggleShuffle)
         );
         assert_eq!(
-            command("fastpotify:repeat"),
+            command("magicspot:repeat"),
             Some(ControlCommand::CycleRepeat)
         );
         assert_eq!(
-            command("fastpotify:shuffle-set on"),
+            command("magicspot:shuffle-set on"),
             Some(ControlCommand::SetShuffle(true))
         );
         assert_eq!(
-            command("fastpotify:shuffle-set off"),
+            command("magicspot:shuffle-set off"),
             Some(ControlCommand::SetShuffle(false))
         );
         assert_eq!(
-            command("fastpotify:repeat-set track"),
+            command("magicspot:repeat-set track"),
             Some(ControlCommand::SetRepeat(RepeatMode::Track))
         );
         assert_eq!(
-            command("fastpotify:repeat-set context"),
+            command("magicspot:repeat-set context"),
             Some(ControlCommand::SetRepeat(RepeatMode::Context))
         );
         assert_eq!(
-            command("fastpotify:repeat-set off"),
+            command("magicspot:repeat-set off"),
             Some(ControlCommand::SetRepeat(RepeatMode::Off))
         );
         assert_eq!(
-            command("fastpotify:seek-to 90000"),
+            command("magicspot:seek-to 90000"),
             Some(ControlCommand::SeekTo(90_000))
         );
         assert_eq!(
-            command("fastpotify:save-toggle"),
+            command("magicspot:save-toggle"),
             Some(ControlCommand::ToggleSaved)
         );
         assert_eq!(
-            command("fastpotify:play-uri spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"),
+            command("magicspot:play-uri spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"),
             Some(ControlCommand::PlayUri(
                 "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M".to_owned()
             ))
         );
         assert_eq!(
-            command("fastpotify:transfer a1b2c3d4e5"),
+            command("magicspot:transfer a1b2c3d4e5"),
             Some(ControlCommand::Transfer("a1b2c3d4e5".to_owned()))
         );
         // A link arrives in whatever shape the desktop had it and leaves
         // as the one URI the app navigates by.
         assert_eq!(
             command(
-                "fastpotify:open-link https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3?si=x"
+                "magicspot:open-link https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3?si=x"
             ),
             Some(ControlCommand::OpenLink(
                 "spotify:album:1DFixLWuPkv3KT3TnV35m3".to_owned()
             ))
         );
         assert!(matches!(
-            parse("fastpotify:nowplaying"),
+            parse("magicspot:nowplaying"),
             Some(Request::NowPlaying)
         ));
-        assert!(matches!(
-            parse("fastpotify:devices"),
-            Some(Request::Devices)
-        ));
+        assert!(matches!(parse("magicspot:devices"), Some(Request::Devices)));
     }
 
     #[test]
     fn rejects_lines_that_are_not_ours() {
         assert!(parse("GET / HTTP/1.1").is_none());
-        assert!(parse("fastpotify:frobnicate").is_none());
-        assert!(parse("fastpotify:seek-by soon").is_none());
-        assert!(parse("fastpotify:volume-set 999").is_none());
-        assert!(parse("fastpotify:next please").is_none());
+        assert!(parse("magicspot:frobnicate").is_none());
+        assert!(parse("magicspot:seek-by soon").is_none());
+        assert!(parse("magicspot:volume-set 999").is_none());
+        assert!(parse("magicspot:next please").is_none());
         assert!(parse("").is_none());
     }
 
@@ -793,21 +790,21 @@ mod tests {
     #[test]
     fn refuses_arguments_that_are_not_shaped_like_spotifys_own() {
         // #given / #when / #then
-        assert!(command("fastpotify:play-uri http://example.com/pwn").is_none());
-        assert!(command("fastpotify:play-uri spotify:track:a b").is_none());
-        assert!(command("fastpotify:play-uri ../../etc/passwd").is_none());
-        assert!(command("fastpotify:play-uri").is_none());
-        assert!(command(&format!("fastpotify:play-uri spotify:{}", "x".repeat(200))).is_none());
-        assert!(command("fastpotify:transfer ../secrets").is_none());
-        assert!(command("fastpotify:transfer").is_none());
-        assert!(command("fastpotify:open-link https://example.com/track/x").is_none());
-        assert!(command("fastpotify:open-link spotify:user:someone").is_none());
-        assert!(command("fastpotify:open-link").is_none());
+        assert!(command("magicspot:play-uri http://example.com/pwn").is_none());
+        assert!(command("magicspot:play-uri spotify:track:a b").is_none());
+        assert!(command("magicspot:play-uri ../../etc/passwd").is_none());
+        assert!(command("magicspot:play-uri").is_none());
+        assert!(command(&format!("magicspot:play-uri spotify:{}", "x".repeat(200))).is_none());
+        assert!(command("magicspot:transfer ../secrets").is_none());
+        assert!(command("magicspot:transfer").is_none());
+        assert!(command("magicspot:open-link https://example.com/track/x").is_none());
+        assert!(command("magicspot:open-link spotify:user:someone").is_none());
+        assert!(command("magicspot:open-link").is_none());
         // A word that is not one of the three is refused rather than read
         // as `off`, which is what `RepeatMode::from_api` would have done.
-        assert!(command("fastpotify:repeat-set sometimes").is_none());
-        assert!(command("fastpotify:shuffle-set maybe").is_none());
-        assert!(command("fastpotify:seek-to -1").is_none());
+        assert!(command("magicspot:repeat-set sometimes").is_none());
+        assert!(command("magicspot:shuffle-set maybe").is_none());
+        assert!(command("magicspot:seek-to -1").is_none());
     }
 
     /// Socket commands reach the queue and reads return published snapshots.

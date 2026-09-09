@@ -281,7 +281,7 @@ impl Inner {
 
 impl BytesLoader for ArtLoader {
     fn id(&self) -> &'static str {
-        "fastpotify::ArtLoader"
+        "magicspot::ArtLoader"
     }
 
     fn load(&self, ctx: &egui::Context, uri: &str) -> BytesLoadResult {
@@ -400,7 +400,7 @@ mod tests {
     /// takes the whole process with it.
     #[test]
     fn a_cached_file_is_named_only_once_it_is_really_there() {
-        let dir = std::env::temp_dir().join(format!("fastpotify-art-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("magicspot-art-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let runtime = tokio::runtime::Builder::new_current_thread()
             .build()
@@ -521,7 +521,7 @@ mod tests {
         assert_eq!(one, 2 * 640 * 640 * 4);
         let jpeg = 50_000usize;
         let dir = std::env::temp_dir().join(format!(
-            "fastpotify-art-budget-{}-{}",
+            "magicspot-art-budget-{}-{}",
             std::process::id(),
             Instant::now().elapsed().as_nanos()
         ));
@@ -595,7 +595,7 @@ mod tests {
         use std::time::Duration as StdDuration;
 
         let dir = std::env::temp_dir().join(format!(
-            "fastpotify-art-reload-{}-{}",
+            "magicspot-art-reload-{}-{}",
             std::process::id(),
             Instant::now().elapsed().as_nanos()
         ));

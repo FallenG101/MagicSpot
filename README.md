@@ -1,4 +1,28 @@
-# Fastpotify
+# MagicSpot
+
+A lightweight native Spotify desktop client for Windows, macOS, and Linux,
+based on Fastpotify by Carmine Paolino (MIT). MagicSpot has independent
+branding, a redesigned desktop shell, responsive album-focused lyrics, custom
+themes, and no browser engine. Spotify Premium is required for playback.
+
+![MagicSpot home with the full-height library, inset content canvas, and contained player](docs/assets/images/magicspot-home.png)
+
+## Windows source build
+
+Install Rust and Microsoft C++ Build Tools, clone this repository, then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -Release
+```
+
+The executable is written to `target/release/magicspot.exe`. VSCodium works
+well as the editor and Visual Studio itself is not required. Omit `-Release`
+for a development build, or use `-Demo` for the offline sample-data build.
+
+Upstream update checks are disabled. The remaining upstream documentation is
+retained as technical reference; its release links download Fastpotify.
+
+## Upstream Fastpotify documentation
 
 **Spotify, native and fast.** Fastpotify is a Spotify client written in
 Rust with [egui](https://github.com/emilk/egui). It plays music through
@@ -10,13 +34,32 @@ browser engine.
 **Playback needs Spotify Premium.** Free accounts can browse and search, but
 cannot play music through Fastpotify on this computer or another device.
 
-![Fastpotify Home with the playlist library, recommendations, queue, and player visible](docs/screenshot.png)
+![MagicSpot responsive lyrics with a large album card](docs/assets/images/magicspot-lyrics.png)
 
 See [fastpotify.rocks](https://fastpotify.rocks/) for installation, setup,
 everyday use, and connection details.
 
 ## What it does
 
+- **Structured desktop shell.** A full-height library rail sits beside fixed
+  top navigation, an inset rounded content canvas, and a contained bottom
+  player. Wide album and playlist headers place large artwork on the right and
+  their title and metadata on the left, then return to a compact arrangement at
+  narrow widths. Windows uses matching custom caption controls in the top bar.
+- **Lyrics reading view.** Larger, consistently weighted lyrics with more
+  space between lines, a track heading, and a high-contrast current line.
+  Choose 20–44 pt text under Settings > Appearance; the control stays out of
+  the lyrics header and the choice is saved independently of interface zoom.
+  Drag the panel edge from a compact sidebar up to a wide reading view. A
+  responsive glass-like album card fills the upper area at every width with
+  the cover, song, artist, and album. Stronger album-colour
+  gradients follow the existing album accent preference. Surrounding lines
+  fade with distance from the current line, while remaining sharp. The optional
+  **Word-by-word lyrics (Beta)** setting estimates word progress between line
+  timestamps and is off by default; untimed and right-to-left lyrics keep
+  line-level highlighting.
+  Timed lyrics retain click-to-seek and automatic following. Highlighting
+  changes colour without changing text layout.
 - **Plays music on this computer.** Fastpotify appears as a Spotify Connect
   device. Select it from your phone or play music in the app. Playback is
   gapless and supports up to 320 kbps, with
@@ -52,7 +95,9 @@ everyday use, and connection details.
   starts.
 - **Album-art colour.** Pages and the player bar take a tint from the cover
   of what you are looking at or listening to. Turn it off in Settings.
-- **Light and dark**, or follow the system.
+- **Themes.** Choose light, dark, system, or OLED appearance, then combine it
+  with Aqua, Violet, Rose, Amber, or Neutral Gray. OLED keeps its base surfaces
+  pure black while supporting accent and album-art tinting.
 - **Winamp mini player.** `Ctrl+M` opens a small player for classic `.wsz`
   skins, drawn at 1x to 4x scale. It includes a spectrum analyser, playlist,
   and equalizer. It keeps its shade mode and, where the desktop permits,

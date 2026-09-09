@@ -2,7 +2,7 @@
 //!
 //! librespot's rodio sink panics if no output device is available. Release
 //! builds abort on that panic. This sink opens the device when playback starts
-//! and reports failures through the UI. Fastpotify can then remain available
+//! and reports failures through the UI. MagicSpot can then remain available
 //! as a Connect remote until an output appears.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
