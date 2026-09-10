@@ -238,6 +238,14 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
         .frame(
             Frame::new()
                 .fill(palette.panel)
+                .stroke(egui::Stroke::new(1.0, palette.outline))
+                .corner_radius(egui::CornerRadius::same(14))
+                .outer_margin(Margin {
+                    left: 4,
+                    right: 8,
+                    top: 8,
+                    bottom: 8,
+                })
                 .inner_margin(Margin::symmetric(20, 16)),
         );
     let response = panel.show(ui, |ui| {
@@ -253,6 +261,7 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
             ui.add_space(4.0);
             theme::text(ui, "Lyrics", theme::semibold(18.0), palette.text);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.add_space(window_controls.lyrics_width);
                 if theme::icon_button(ui, Icon::X, 18.0, palette.secondary, palette.text, "Close")
                     .clicked()
                 {
@@ -353,7 +362,15 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                     Some(Align::Min),
                 );
             }
-            ui.add_space(if lyrics.synced { focus_padding } else { 20.0 });
+            // Centering needs room above an active line, but that same room is
+            // an empty half-panel at the start of a song. Keep the opening at
+            // the top; once a line starts, following scrolls it to the centre.
+            let opening_padding = if lyrics.synced && active.is_some() {
+                focus_padding
+            } else {
+                4.0
+            };
+            ui.add_space(opening_padding);
             for (index, line) in lyrics.lines.iter().enumerate() {
                 let is_active = active == Some(index);
                 let lit = ui.ctx().animate_bool_with_time(

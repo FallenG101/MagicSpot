@@ -208,6 +208,8 @@ const WINDOWS_WINDOW_CONTROLS_WIDTH: f32 = 3.0 * 36.0 + WINDOW_RESIZE_BORDER;
 const WINDOWS_WINDOW_CONTROLS_HEIGHT: f32 = 36.0 + WINDOW_RESIZE_BORDER;
 // The 760-point minimum with the default 250-point sidebar leaves 510 points.
 const WINDOWS_MIN_INLINE_TOPBAR_WIDTH: f32 = 510.0 + WINDOWS_WINDOW_CONTROLS_WIDTH;
+// Lyrics, Follow, close, and the caption buttons all fit comfortably here.
+const WINDOWS_MIN_INLINE_LYRICS_WIDTH: f32 = 440.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct WindowControlsReservation {
@@ -215,6 +217,7 @@ pub(super) struct WindowControlsReservation {
     pub topbar_top: f32,
     pub queue_top: f32,
     pub lyrics_top: f32,
+    pub lyrics_width: f32,
 }
 
 const fn windows_chrome_visible(on_windows: bool, _fullscreen: bool) -> bool {
@@ -241,12 +244,20 @@ const fn windows_controls_reservation(
         topbar_top: 0.0,
         queue_top: 0.0,
         lyrics_top: 0.0,
+        lyrics_width: 0.0,
     };
     if windows_chrome_visible(on_windows, fullscreen) {
         if queue {
             space.queue_top = WINDOWS_WINDOW_CONTROLS_HEIGHT;
         } else if lyrics {
-            space.lyrics_top = WINDOWS_WINDOW_CONTROLS_HEIGHT;
+            // At normal panel widths the caption buttons share the lyrics
+            // header instead of making it jump down. At the draggable minimum
+            // width, use a separate row so Follow and close never overlap.
+            if topbar_width < WINDOWS_MIN_INLINE_LYRICS_WIDTH {
+                space.lyrics_top = WINDOWS_WINDOW_CONTROLS_HEIGHT;
+            } else {
+                space.lyrics_width = WINDOWS_WINDOW_CONTROLS_WIDTH;
+            }
         } else if topbar_width < WINDOWS_MIN_INLINE_TOPBAR_WIDTH {
             space.topbar_top = WINDOWS_WINDOW_CONTROLS_HEIGHT;
         } else {
@@ -462,23 +473,24 @@ mod window_chrome_tests {
                 space.topbar_top,
                 space.queue_top,
                 space.lyrics_top,
+                space.lyrics_width,
             ]
         };
         assert_eq!(
             values(false, false),
-            [WINDOWS_WINDOW_CONTROLS_WIDTH, 0.0, 0.0, 0.0]
+            [WINDOWS_WINDOW_CONTROLS_WIDTH, 0.0, 0.0, 0.0, 0.0]
         );
         assert_eq!(
             values(true, false),
-            [0.0, 0.0, WINDOWS_WINDOW_CONTROLS_HEIGHT, 0.0]
+            [0.0, 0.0, WINDOWS_WINDOW_CONTROLS_HEIGHT, 0.0, 0.0]
         );
         assert_eq!(
             values(false, true),
-            [0.0, 0.0, 0.0, WINDOWS_WINDOW_CONTROLS_HEIGHT]
+            [0.0, 0.0, 0.0, 0.0, WINDOWS_WINDOW_CONTROLS_WIDTH]
         );
         assert_eq!(
             values(true, true),
-            [0.0, 0.0, WINDOWS_WINDOW_CONTROLS_HEIGHT, 0.0]
+            [0.0, 0.0, WINDOWS_WINDOW_CONTROLS_HEIGHT, 0.0, 0.0]
         );
         assert_eq!(
             windows_controls_reservation(true, true, true, true, f32::INFINITY),
@@ -487,6 +499,7 @@ mod window_chrome_tests {
                 topbar_top: 0.0,
                 queue_top: WINDOWS_WINDOW_CONTROLS_HEIGHT,
                 lyrics_top: 0.0,
+                lyrics_width: 0.0,
             }
         );
     }
@@ -497,6 +510,7 @@ mod window_chrome_tests {
         let space = windows_controls_reservation(true, false, false, false, available);
         assert_eq!(space.topbar_width, 0.0);
         assert_eq!(space.topbar_top, WINDOWS_WINDOW_CONTROLS_HEIGHT);
+        assert_eq!(space.lyrics_width, 0.0);
 
         let inline = windows_controls_reservation(
             true,
