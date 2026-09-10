@@ -43,6 +43,22 @@ are currently unsigned, so Windows may ask you to confirm the publisher.
 
 The raw `magicspot.exe` is also attached to every release.
 
+## Install on macOS
+
+Download the universal DMG from
+[GitHub Releases](https://github.com/FallenG101/MagicSpot/releases), open it,
+and drag MagicSpot into Applications. The same download supports Apple Silicon
+and Intel Macs.
+
+Current Mac builds are ad hoc signed while MagicSpot is a personal project. On
+first launch, macOS may require you to Control-click MagicSpot, choose **Open**,
+and confirm. Developer ID signing and Apple notarization are planned before a
+public release.
+
+Homebrew support will follow the DMG once public releases are stable. A Cask is
+an alternate installation route for the same release artifact, rather than a
+replacement for the DMG.
+
 ## Build on Windows
 
 Install [Rust](https://rustup.rs/) and the Microsoft C++ Build Tools, then run
