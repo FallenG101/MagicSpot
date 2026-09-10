@@ -1,11 +1,18 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish
+        required: true
+        default: v0.7.4
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag }}
 
 jobs:
   windows:
@@ -14,6 +21,8 @@ jobs:
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.98.0
@@ -23,7 +32,7 @@ jobs:
       - name: Package portable downloads
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $version = $env:RELEASE_TAG.TrimStart('v')
           New-Item -ItemType Directory -Path dist, "stage/MagicSpot" -Force | Out-Null
           Copy-Item target/release/magicspot.exe dist/magicspot.exe
           Copy-Item target/release/magicspot.exe, README.md, LICENSE -Destination "stage/MagicSpot"
@@ -32,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $version = $env:RELEASE_TAG.TrimStart('v')
           $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           & $compiler "/DVersion=$version" "/DArch=x86_64" "/DBinary=$pwd\target\release\magicspot.exe" "/DOutputDir=$pwd\dist" "packaging\windows\magicspot.iss"
       - name: Write checksums
@@ -48,4 +57,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = Get-ChildItem dist -File | ForEach-Object FullName
-          gh release create $env:GITHUB_REF_NAME $files --title "MagicSpot $env:GITHUB_REF_NAME" --generate-notes
+          gh release create $env:RELEASE_TAG $files --title "MagicSpot $env:RELEASE_TAG" --generate-notes
