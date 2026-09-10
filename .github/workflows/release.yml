@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows downloads
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build MagicSpot
+        run: cargo build --locked --release --no-default-features
+      - name: Package portable downloads
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          New-Item -ItemType Directory -Path dist, "stage/MagicSpot" -Force | Out-Null
+          Copy-Item target/release/magicspot.exe dist/magicspot.exe
+          Copy-Item target/release/magicspot.exe, README.md, LICENSE -Destination "stage/MagicSpot"
+          Compress-Archive -Path "stage/MagicSpot" -DestinationPath "dist/magicspot-v$version-x86_64-pc-windows-msvc.zip"
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $compiler "/DVersion=$version" "/DArch=x86_64" "/DBinary=$pwd\target\release\magicspot.exe" "/DOutputDir=$pwd\dist" "packaging\windows\magicspot.iss"
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Set-Content dist/checksums.txt
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem dist -File | ForEach-Object FullName
+          gh release create $env:GITHUB_REF_NAME $files --title "MagicSpot $env:GITHUB_REF_NAME" --generate-notes

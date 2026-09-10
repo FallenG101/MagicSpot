@@ -14,9 +14,9 @@ between line timestamps and is disabled by default.
 ## Appearance
 
 Choose Light, Dark, Follow System, or OLED at the top of Appearance settings.
-Then choose Aqua, Violet, Rose, Amber, or Neutral Gray independently. OLED uses
-black base surfaces and can still receive the selected accent and album-art
-tint. Disable **Colour from album art** for a stable palette.
+Then choose Aqua, Violet, Rose, Amber, or Neutral Gray independently. Neutral
+Gray uses darker charcoal surfaces, and both it and OLED accept album-art tint.
+Disable **Colour from album art** for a stable palette.
 
 ## Common shortcuts
 

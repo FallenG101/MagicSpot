@@ -1230,9 +1230,7 @@ impl App {
 
     /// The colour to tint the interface with, from the playing art.
     pub fn now_playing_tint(&self) -> Option<Color32> {
-        if !self.settings.accent_from_art
-            || self.settings.color_theme == crate::settings::ColorTheme::Neutral
-        {
+        if !self.settings.accent_from_art {
             return None;
         }
         let now = self.now_playing()?;

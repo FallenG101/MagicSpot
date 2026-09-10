@@ -64,9 +64,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 }
 
 fn page_tint(app: &mut App) -> Option<Color32> {
-    if app.settings.color_theme == crate::settings::ColorTheme::Neutral {
-        return None;
-    }
     let page = app.page().clone();
     let image = match &page {
         Page::Playlist(id) => app

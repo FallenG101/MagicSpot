@@ -14,8 +14,7 @@ release direction.
 
 ## Current status
 
-MagicSpot is an early personal project. Source builds are supported; packaged
-GitHub releases are not available yet. Spotify Premium is required for local
+MagicSpot is an early personal project. Spotify Premium is required for local
 playback through librespot. MagicSpot is not affiliated with or endorsed by
 Spotify.
 
@@ -28,12 +27,21 @@ Spotify.
 - Adjustable 20–44 pt lyric text and optional word-by-word highlighting marked
   **Beta** and disabled by default.
 - Light, Dark, Follow System, and OLED appearances.
-- Aqua, Violet, Rose, Amber, and Neutral Gray accents. OLED supports accent and
-  album-art tinting while keeping its base surfaces black.
+- Aqua, Violet, Rose, Amber, and Neutral Gray accents. Neutral Gray and OLED
+  support album-art tinting while keeping their darker base surfaces.
 - Independent MagicSpot executable, application IDs, data directories, icons,
   installers, command protocol, and built-in Winamp skin.
 
 ![MagicSpot lyrics](docs/assets/images/magicspot-lyrics.png)
+
+## Install on Windows
+
+Download the normal setup program or portable ZIP from
+[GitHub Releases](https://github.com/FallenG101/MagicSpot/releases). The setup
+installs for the current user and does not require administrator rights. Builds
+are currently unsigned, so Windows may ask you to confirm the publisher.
+
+The raw `magicspot.exe` is also attached to every release.
 
 ## Build on Windows
 

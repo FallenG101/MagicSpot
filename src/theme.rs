@@ -138,9 +138,9 @@ impl Palette {
                     Color32::from_rgb(0x2a, 0x23, 0x17),
                 ),
                 crate::settings::ColorTheme::Neutral => (
-                    Color32::from_rgb(0x12, 0x13, 0x15),
-                    Color32::from_rgb(0x19, 0x1b, 0x1f),
-                    Color32::from_rgb(0x23, 0x26, 0x2b),
+                    Color32::from_rgb(0x0d, 0x0e, 0x10),
+                    Color32::from_rgb(0x14, 0x16, 0x1a),
+                    Color32::from_rgb(0x1d, 0x20, 0x25),
                 ),
                 crate::settings::ColorTheme::Oled => (
                     Color32::from_rgb(0x0a, 0x12, 0x15),

@@ -5,8 +5,8 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-// A fork must never offer upstream binaries as its own updates.
-const LATEST_RELEASE_URL: Option<&str> = None;
+const LATEST_RELEASE_URL: Option<&str> =
+    Some("https://api.github.com/repos/FallenG101/MagicSpot/releases/latest");
 
 /// Update-check interval.
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
@@ -27,8 +27,7 @@ struct LatestRelease {
 
 /// The newest release, when it is newer than this build.
 pub async fn newer_release(http: &reqwest::Client) -> Result<Option<Release>> {
-    let url = LATEST_RELEASE_URL
-        .context("MagicSpot updates are not configured. Build from your local source.")?;
+    let url = LATEST_RELEASE_URL.context("MagicSpot updates are not configured")?;
     let latest: LatestRelease = http
         .get(url)
         .header("Accept", "application/vnd.github+json")

@@ -12,8 +12,8 @@ backend.
 - Album art and audio may be cached locally within configured limits.
 - Opening MilkDrop for the first time may download projectM preset packs from
   GitHub when the preset folder is empty.
-- Automatic GitHub release checks are disabled until MagicSpot publishes its
-  own releases.
+- When update checks are enabled, MagicSpot asks GitHub for the latest
+  MagicSpot release at most once per day.
 
 Clearing cache files does not remove sign-in credentials. Removing the state
 directory signs the application out and removes locally retained session data.
