@@ -327,15 +327,10 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                 Some(Align::Min),
             );
         }
-        // Centering needs room above an active line, but that same room is
-        // an empty half-panel at the start of a song. Keep the opening at
-        // the top; once a line starts, following scrolls it to the centre.
-        let opening_padding = if lyrics.synced && active.is_some() {
-            focus_padding
-        } else {
-            4.0
-        };
-        ui.add_space(opening_padding);
+        // Keep the first line comfortably below the hero without putting a
+        // scrollable half-panel of empty space above it. Early active lines
+        // may sit below centre until enough preceding lyrics exist.
+        ui.add_space(16.0);
         for (index, line) in lyrics.lines.iter().enumerate() {
             let is_active = active == Some(index);
             let lit = ui.ctx().animate_bool_with_time(
