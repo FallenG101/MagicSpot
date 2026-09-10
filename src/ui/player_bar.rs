@@ -12,18 +12,13 @@ use super::widgets::{SliderEvent, thin_slider};
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
-    let tint = app.now_playing_tint();
-    let fill = match tint {
-        Some(tint) => super::blend(palette.panel, tint, 0.12),
-        None => palette.panel,
-    };
     egui::Panel::bottom("player-bar")
         .exact_size(theme::PLAYER_BAR_HEIGHT + 12.0)
         .resizable(false)
         .show_separator_line(false)
         .frame(
             Frame::new()
-                .fill(fill)
+                .fill(palette.panel)
                 .stroke(egui::Stroke::new(1.0, palette.outline))
                 .corner_radius(14.0)
                 .outer_margin(Margin {

@@ -134,7 +134,7 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                         };
                         let top = blend(palette.panel, tint, strength);
                         let header = Rect::from_min_size(rect.min, vec2(rect.width(), 340.0));
-                        widgets::paint_vertical_gradient(ui, header, top, palette.panel);
+                        widgets::paint_rounded_top_gradient(ui, header, top, palette.panel, 14.0);
                     }
                     egui::ScrollArea::vertical()
                         .id_salt(("page", page.encode()))

@@ -121,6 +121,36 @@ pub fn paint_vertical_gradient(ui: &Ui, rect: Rect, top: Color32, bottom: Color3
     ui.painter().add(egui::Shape::mesh(mesh));
 }
 
+/// Fills a header gradient while following the rounded top of its container.
+pub fn paint_rounded_top_gradient(ui: &Ui, rect: Rect, top: Color32, bottom: Color32, radius: f32) {
+    const STEPS: u32 = 96;
+    let radius = radius.min(rect.width() * 0.5).min(rect.height());
+    let mut mesh = egui::Mesh::default();
+    for row in 0..=STEPS {
+        let fraction = row as f32 / STEPS as f32;
+        let y = rect.top() + rect.height() * fraction;
+        let from_top = y - rect.top();
+        let inset = if from_top < radius {
+            let dy = radius - from_top;
+            radius - (radius * radius - dy * dy).max(0.0).sqrt()
+        } else {
+            0.0
+        };
+        let color = Color32::from(
+            egui::Rgba::from(top) * (1.0 - fraction) + egui::Rgba::from(bottom) * fraction,
+        );
+        mesh.colored_vertex(egui::pos2(rect.left() + inset, y), color);
+        mesh.colored_vertex(egui::pos2(rect.right() - inset, y), color);
+    }
+    for row in 0..STEPS {
+        let top_left = row * 2;
+        let bottom_left = top_left + 2;
+        mesh.add_triangle(top_left, top_left + 1, bottom_left);
+        mesh.add_triangle(top_left + 1, bottom_left + 1, bottom_left);
+    }
+    ui.painter().add(egui::Shape::mesh(mesh));
+}
+
 /// Lays out only the rows that intersect the visible area of the enclosing
 /// scroll view. Every row must occupy exactly `row_height`.
 pub fn virtual_rows(
