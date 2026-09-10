@@ -16,7 +16,7 @@ use crate::media::{MediaCommand, MediaState, MediaTrack};
 use crate::player::{Playback, RepeatMode};
 
 const PLAYING_POSITION_INTERVAL: Duration = Duration::from_millis(1000);
-const TRACK_OBJECT_PATH_PREFIX: &str = "/me/paolino/MagicSpot/Track/";
+const TRACK_OBJECT_PATH_PREFIX: &str = "/io/github/falleng101/MagicSpot/Track/";
 
 enum Update {
     State(MediaState),
@@ -311,7 +311,7 @@ fn uri_from_object_path(path: &str) -> Option<String> {
 /// the app id, and a desktop looking it up by the plain name finds nothing.
 fn desktop_entry() -> &'static str {
     if std::path::Path::new("/.flatpak-info").exists() {
-        "rocks.magicspot.MagicSpot"
+        "io.github.falleng101.MagicSpot"
     } else {
         "magicspot"
     }

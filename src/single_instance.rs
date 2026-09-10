@@ -29,12 +29,12 @@
 //!
 //! A Spotify link the desktop hands to a second launch reaches the running
 //! instance the same way: `open-link` over the socket, or on Linux the
-//! `Open` method of the `rocks.magicspot.Instance` interface the guard
+//! `Open` method of the `io.github.falleng101.MagicSpot.Instance` interface the guard
 //! serves on its own name.
 
 /// The name held for the lifetime of the running instance.
 #[cfg(target_os = "linux")]
-const INSTANCE_NAME: &str = "rocks.magicspot.Instance";
+const INSTANCE_NAME: &str = "io.github.falleng101.MagicSpot.Instance";
 
 /// The MPRIS player to ask when another instance already holds the name.
 #[cfg(target_os = "linux")]
@@ -42,7 +42,7 @@ const MPRIS_NAME: &str = "org.mpris.MediaPlayer2.magicspot";
 
 /// Where the running instance answers `Open` for links, on [`INSTANCE_NAME`].
 #[cfg(target_os = "linux")]
-const INSTANCE_PATH: &str = "/rocks/magicspot/Instance";
+const INSTANCE_PATH: &str = "/io/github/falleng101/MagicSpot/Instance";
 
 pub enum Outcome {
     /// This process is the only instance. Hold the guard until it exits.
@@ -404,7 +404,7 @@ struct Instance {
 }
 
 #[cfg(target_os = "linux")]
-#[zbus::interface(name = "rocks.magicspot.Instance")]
+#[zbus::interface(name = "io.github.falleng101.MagicSpot.Instance")]
 impl Instance {
     /// Opens the page for a Spotify link and brings the window forward. A
     /// link that is not a page the app has is refused, so the caller can
@@ -543,7 +543,7 @@ fn open_in_running_instance(
             let opened = connection.call_method(
                 Some(INSTANCE_NAME),
                 INSTANCE_PATH,
-                Some("rocks.magicspot.Instance"),
+                Some("io.github.falleng101.MagicSpot.Instance"),
                 "Open",
                 &(uri.as_str(),),
             );
@@ -649,7 +649,7 @@ mod bus_tests {
         let opened = client.call_method(
             Some(name.as_str()),
             INSTANCE_PATH,
-            Some("rocks.magicspot.Instance"),
+            Some("io.github.falleng101.MagicSpot.Instance"),
             "Open",
             &("spotify:album:1DFixLWuPkv3KT3TnV35m3",),
         );

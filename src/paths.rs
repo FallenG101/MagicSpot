@@ -18,16 +18,47 @@ pub struct AppDirs {
 
 impl AppDirs {
     pub fn discover() -> Self {
-        let project = ProjectDirs::from("me", "paolino", "magicspot");
+        let project = ProjectDirs::from("com", "falleng101", "magicspot");
         match project {
-            Some(project) => Self {
-                config: project.config_dir().to_path_buf(),
-                state: project
-                    .state_dir()
-                    .map(|path| path.to_path_buf())
-                    .unwrap_or_else(|| project.data_local_dir().to_path_buf()),
-                cache: project.cache_dir().to_path_buf(),
-            },
+            Some(project) => {
+                let dirs = Self {
+                    config: project.config_dir().to_path_buf(),
+                    state: project
+                        .state_dir()
+                        .map(|path| path.to_path_buf())
+                        .unwrap_or_else(|| project.data_local_dir().to_path_buf()),
+                    cache: project.cache_dir().to_path_buf(),
+                };
+                if let Some(legacy) = ProjectDirs::from("me", "paolino", "magicspot") {
+                    let legacy = Self {
+                        config: legacy.config_dir().to_path_buf(),
+                        state: legacy
+                            .state_dir()
+                            .map(|path| path.to_path_buf())
+                            .unwrap_or_else(|| legacy.data_local_dir().to_path_buf()),
+                        cache: legacy.cache_dir().to_path_buf(),
+                    };
+                    for (old, new) in [
+                        (&legacy.config, &dirs.config),
+                        (&legacy.state, &dirs.state),
+                        (&legacy.cache, &dirs.cache),
+                    ] {
+                        if old.exists() && !new.exists() {
+                            if let Some(parent) = new.parent() {
+                                let _ = std::fs::create_dir_all(parent);
+                            }
+                            if let Err(error) = std::fs::rename(old, new) {
+                                log::warn!(
+                                    "unable to move earlier MagicSpot data from {} to {}: {error}",
+                                    old.display(),
+                                    new.display()
+                                );
+                            }
+                        }
+                    }
+                }
+                dirs
+            }
             None => {
                 let fallback = std::env::current_dir().unwrap_or_default();
                 Self {
