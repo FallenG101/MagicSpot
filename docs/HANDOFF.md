@@ -1,0 +1,202 @@
+# MagicSpot maintainer handoff
+
+Updated 2026-09-10. This is the starting point for a new maintainer, coding
+agent, or chat that does not have the project's conversation history.
+
+## Current baseline
+
+- The working branch is `main`; `origin` is
+  `https://github.com/FallenG101/MagicSpot.git`.
+- Fastpotify remains configured as the `upstream` remote at
+  `https://github.com/crmne/fastpotify.git`.
+- The latest user release is **v0.7.4**. It contains the lyrics spacing fix and
+  Windows and universal macOS downloads.
+- Main may contain documentation or development commits newer than the latest
+  release tag. Do not bump or tag a new version for routine changes.
+- The repository is currently private. The account reported reaching roughly
+  90% of its monthly hosted GitHub Actions allowance in September 2026, so all
+  workflows are intentionally manual. Continue development with local checks
+  and batch changes into milestone releases.
+
+Start every session with:
+
+```sh
+git status --short
+git log -5 --oneline --decorate
+git remote -v
+```
+
+Do not discard an existing working tree. Inspect and preserve work already in
+progress before editing.
+
+## Product direction
+
+MagicSpot is a desktop-only Spotify client for Windows, macOS, and Linux. Its
+main goals are low resource use, fast native interaction, a polished layout,
+and a better lyrics experience. The current shell takes layout inspiration
+from Juxtopposed's Spotify redesign concepts while retaining its own visuals.
+
+Keep the Rust, egui, and librespot architecture. Do not add an embedded browser
+engine, telemetry, a hosted MagicSpot backend, alternate audio sources, DRM
+bypasses, or unsupported lossless claims. Lossless playback is deferred until
+the legitimate Spotify/librespot stack supports it. VSCodium is the preferred
+editor, although no editor-specific project files are required.
+
+The project may become public later. Until signing, documentation, and releases
+are mature, treat it as a personal feature-rich fork and keep broadly useful
+fixes separable for possible upstream contribution.
+
+## Current interface decisions
+
+- The desktop shell uses a full-height library rail, top navigation, rounded
+  inset content, and a contained bottom player bar.
+- Lyrics use a resizable right panel. Drag its left edge to change size; there
+  is no expand button or separate full-screen mode.
+- The lyrics header contains a responsive album card and track metadata.
+- Synced lines follow and center the active lyric. Manual scrolling disables
+  following until **Follow** is selected or a line is clicked.
+- The list starts with a fixed 16-point inset. Do not restore a viewport-sized
+  spacer above the first line; it creates the large blank area fixed in v0.7.4.
+- Lyric size is adjustable from 20 to 44 points in Appearance settings.
+- Estimated word-by-word progress is labelled **Beta** and defaults to off. It
+  interpolates between line timestamps; it is not true per-word timing.
+- Appearance choices are Dark, Light, Follow system, and OLED. Accent choices
+  are Aqua, Violet, Rose, Amber, and Neutral gray. Album-art tint is optional;
+  OLED and Neutral remain tintable.
+- The bottom player bar uses the selected theme surface rather than its own
+  album tint.
+
+The main UI files are `src/ui/mod.rs`, `src/ui/topbar.rs`,
+`src/ui/sidebar.rs`, `src/ui/player_bar.rs`, `src/ui/collection.rs`, and
+`src/ui/lyrics.rs`. Shared palettes, type, dimensions, and icons live in
+`src/theme.rs` and `src/ui/widgets.rs`.
+
+## Architecture
+
+- `src/main.rs` creates the native window, parses links and control commands,
+  and supports deterministic demo screenshots behind the `demo` feature.
+- `src/app.rs` owns UI-visible state. Views emit `Action` values, and the app
+  applies them centrally.
+- `src/backend.rs` owns the Tokio runtime. Spotify API, authentication,
+  playback, lyrics, and image work must stay off the egui thread.
+- `src/api/` handles Spotify Web API models, clients, and shared/personal app
+  routing.
+- `src/player.rs`, `src/sink.rs`, `src/resample.rs`, `src/eq.rs`, and
+  `src/limiter.rs` implement local playback and audio processing.
+- `src/lyrics.rs` fetches and parses lyrics; `src/ui/lyrics.rs` presents them.
+- `src/settings.rs` and `src/paths.rs` define persistent formats and platform
+  storage. Preserve backward compatibility when adding settings.
+- `src/demo.rs` supplies offline data and headless UI coverage. Use it for UI
+  changes instead of requiring a Spotify account.
+- `packaging/` contains independent MagicSpot desktop identities, icons,
+  Windows installer metadata, and the macOS bundle script.
+
+## Build and validation
+
+The ordinary distributable deliberately excludes optional MilkDrop support:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -Release
+```
+
+The result on Windows is `target/release/magicspot.exe`. The equivalent direct
+command on every platform is:
+
+```sh
+cargo build --locked --release --no-default-features
+```
+
+Run these before committing code:
+
+```sh
+cargo fmt --all --check
+cargo test --locked --no-default-features --features demo --all-targets
+cargo clippy --locked --no-default-features --features demo --all-targets -- -D warnings
+```
+
+On this Windows workstation Cargo may need the explicit path
+`C:\Users\Grant\.cargo\bin\cargo.exe`. Default features include projectM and
+need CMake, libclang, Visual Studio 2022, and vcpkg on Windows. Do not interpret
+a missing `VCPKG_INSTALLATION_ROOT` as a failure of the standard lightweight
+build.
+
+For a deterministic UI image:
+
+```powershell
+cargo run --locked --no-default-features --features demo -- `
+  --demo-shot target\magicspot-demo.png `
+  --demo-shot-delay 1200 `
+  --demo-size 1400x900 `
+  --demo-show lyrics
+```
+
+Useful `--demo-show` values include `lyrics`, `lyrics-expanded`, `lyrics-beta`,
+`queue`, `devices`, `light`, `neutral`, and `oled`. Allow follow-scroll
+animations to settle before judging a screenshot.
+
+## Authentication and updates
+
+Spotify Premium is required for local librespot playback. Initial setup has two
+parts: Web API sign-in and separate local playback authorization. Shared API
+quota, Spotify device discovery, and the first transfer can make the first
+connection slower. A personal Development Mode client ID in Settings gives Web
+API requests a separate quota but does not replace playback authorization.
+
+MagicSpot has a release checker, not an installer updater. Checks default to
+off; when enabled they query GitHub at most once per day and open the release
+page for a newer version.
+
+## Release runbook
+
+Avoid releases for isolated cosmetic fixes. Accumulate and test a useful group
+of changes, then:
+
+1. Update the package version in both `Cargo.toml` and MagicSpot's package entry
+   in `Cargo.lock`.
+2. Run formatting, the complete lightweight test suite, strict Clippy, a local
+   release build, and relevant demo screenshots.
+3. Commit and push `main`.
+4. Create and push an annotated tag such as `v0.8.0`.
+5. From GitHub's Actions page, manually run **CI** if cross-platform validation
+   is warranted.
+6. Manually run **Release** with the exact tag to create or update the Windows
+   installer, portable ZIP, raw executable, and checksums.
+7. Manually run **macOS release** with the same tag to attach the universal DMG
+   and checksum. Run Windows first because the macOS job expects a GitHub
+   release to exist.
+8. Verify that the release is neither a draft nor prerelease and that every
+   expected asset is present before reporting completion.
+
+The workflows are idempotent for an existing release: Windows uploads with
+`--clobber`, and macOS already does the same. Running any hosted workflow spends
+the private account's allowance. Do not trigger one merely to validate a
+documentation or routine UI commit.
+
+## Distribution limitations
+
+- Windows packages are unsigned and may show a publisher warning.
+- macOS packages are universal and ad hoc signed, but not Apple-notarized.
+- Homebrew is deferred until public releases are stable.
+- Linux currently has source/Nix builds rather than a maintained store package.
+- True word timing, lossless playback, and automatic in-place updates are not
+  implemented.
+
+## Upstream work
+
+Follow `docs/UPSTREAM.md`. Review upstream frequently and integrate in small
+batches. Expect conflicts in `src/app.rs`, `src/settings.rs`, `src/theme.rs`,
+and `src/ui/`. Preserve MagicSpot branding, IDs, paths, packaging, themes, and
+lyrics behavior. Playback, API, platform, accessibility, and performance fixes
+are the strongest candidates to contribute independently to Fastpotify.
+
+## Near-term backlog
+
+- Continue layout and visual polish while preserving performance.
+- Improve lyric timing only when reliable metadata is available.
+- Add signing, notarization, and possibly a Homebrew Cask before a public push.
+- Consider a true updater later; the current release checker is intentionally
+  described accurately in the UI and documentation.
+- Revisit lossless only after upstream playback support exists.
+
+There is no known unfinished code task recorded at this handoff. Check open
+issues, the working tree, and the newest user request before choosing work.

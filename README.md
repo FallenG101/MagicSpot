@@ -99,6 +99,9 @@ See [Using MagicSpot](docs/USAGE.md) for shortcuts, lyrics controls, themes,
 external commands, and stored data. [Privacy and network access](docs/PRIVACY.md)
 documents every service the application contacts.
 
+MagicSpot can check GitHub for a newer release and open its download page. It
+does not currently replace or install the application automatically.
+
 ## Features
 
 - Local playback up to 320 kbps, gapless playback, normalization, and an audio
@@ -142,6 +145,9 @@ cargo fmt --all --check
 cargo test --locked --no-default-features --features demo --all-targets
 cargo clippy --locked --no-default-features --features demo --all-targets -- -D warnings
 ```
+
+Maintainers and coding agents should also read the current
+[maintainer handoff](docs/HANDOFF.md) and [changelog](CHANGELOG.md).
 
 ## Acknowledgements and license
 

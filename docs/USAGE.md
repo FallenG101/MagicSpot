@@ -11,6 +11,10 @@ scrolling, or click a timed line to seek. Change lyric size under
 **Settings → Appearance**. **Word-by-word lyrics (Beta)** estimates progress
 between line timestamps and is disabled by default.
 
+The lyrics list has a small fixed gap below the song card. Following can center
+the active line, but scrolling to the first line does not expose a large blank
+area above it.
+
 ## Appearance
 
 Choose Light, Dark, Follow System, or OLED at the top of Appearance settings.
@@ -57,6 +61,20 @@ magicspot devices
 
 Run `magicspot --help` for the complete list. Passing a Spotify URI or URL opens
 it in the existing instance.
+
+## First launch and updates
+
+MagicSpot signs into the Spotify Web API first, then authorizes its local
+librespot playback device separately. Spotify discovery, shared API quota, and
+the first device transfer can make the initial connection slower than later
+launches. A personal Spotify Development Mode client ID under **Settings →
+Account** gives Web API requests their own quota; it does not replace the local
+playback authorization.
+
+Update checks are disabled by default. When enabled, MagicSpot checks GitHub at
+most once per day and offers the release page when a newer version exists. The
+app does not download or install updates in place; use the new installer, ZIP,
+or DMG from GitHub Releases.
 
 ## Files and reset behavior
 

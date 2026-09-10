@@ -12,6 +12,10 @@ small native egui/librespot architecture.
 - Add focused tests for state and migration changes. Use the `demo` feature
   for deterministic UI work.
 - Run formatting, tests, and strict Clippy before committing.
+- Read `docs/HANDOFF.md` before changing behavior or publishing a release.
+- Hosted GitHub workflows are manual because this private repository has a
+  limited Actions allowance. Do not start them for routine iteration. Work
+  locally and batch changes into milestone releases.
 
 Work on `main`. Keep the upstream Fastpotify remote so useful fixes can be
 reviewed and integrated without losing project ancestry.

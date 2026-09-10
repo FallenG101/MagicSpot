@@ -84,3 +84,6 @@ checks are sufficient during normal iteration.
 The Windows and macOS release workflows are manual for the same reason. Create
 and push a version tag, then run **Release** followed by **macOS release** with
 that tag when a downloadable milestone is ready.
+
+For the complete version bump, tagging, packaging, and verification sequence,
+see the release runbook in `docs/HANDOFF.md`.
