@@ -77,13 +77,14 @@ cargo clippy --locked --no-default-features --features demo --all-targets -- -D 
 ```
 
 The **CI** workflow can run those checks on Windows, macOS, and Linux from the
-GitHub Actions page. It is manual while MagicSpot is private so routine pushes
-do not consume hosted-runner minutes. Run it before milestone releases; local
-checks are sufficient during normal iteration.
+GitHub Actions page. It remains manual so full cross-platform runs are
+deliberate and milestone releases stay easy to audit. Standard hosted runners
+are free for the public repository; local checks are sufficient during normal
+iteration.
 
-The Windows and macOS release workflows are manual for the same reason. Create
-and push a version tag, then run **Release** followed by **macOS release** with
-that tag when a downloadable milestone is ready.
+The Windows and macOS release workflows are also manual. Create and push a
+version tag, then run **Release** followed by **macOS release** with that tag
+when a downloadable milestone is ready.
 
 For the complete version bump, tagging, packaging, and verification sequence,
 see the release runbook in `docs/HANDOFF.md`.

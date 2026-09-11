@@ -13,10 +13,10 @@ agent, or chat that does not have the project's conversation history.
   Windows and universal macOS downloads.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
-- The repository is currently private. The account reported reaching roughly
-  90% of its monthly hosted GitHub Actions allowance in September 2026, so all
-  workflows are intentionally manual. Continue development with local checks
-  and batch changes into milestone releases.
+- The repository is public. Standard GitHub-hosted runners are therefore free,
+  but all workflows remain intentionally manual so cross-platform checks and
+  packaging happen at deliberate milestones. Continue development with local
+  checks and batch changes into milestone releases.
 
 Start every session with:
 
@@ -174,9 +174,9 @@ of changes, then:
    expected asset is present before reporting completion.
 
 The workflows are idempotent for an existing release: Windows uploads with
-`--clobber`, and macOS already does the same. Running any hosted workflow spends
-the private account's allowance. Do not trigger one merely to validate a
-documentation or routine UI commit.
+`--clobber`, and macOS already does the same. Standard hosted runners are free
+for this public repository, but do not trigger a full matrix merely to validate
+a documentation or routine UI commit.
 
 ## Distribution limitations
 
@@ -204,7 +204,8 @@ are the strongest candidates to contribute independently to Fastpotify.
 - Improve first-connection feedback and queue interactions.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
-- Add signing, notarization, and possibly a Homebrew Cask before a public push.
+- Add Developer ID signing, notarization, and possibly a Homebrew Cask as the
+  downloads mature for broader distribution.
 - Consider a true updater later; the current release checker is intentionally
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.

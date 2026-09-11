@@ -1,8 +1,7 @@
 name: CI
 
-# MagicSpot is currently developed in a private repository, where hosted
-# runner time is metered. Run the full cross-platform matrix deliberately
-# before a milestone release instead of spending minutes on every UI commit.
+# Keep the full cross-platform matrix deliberate and easy to audit before a
+# milestone release. Routine iteration is validated locally.
 on:
   workflow_dispatch:
 

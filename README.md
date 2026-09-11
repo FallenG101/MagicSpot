@@ -53,8 +53,9 @@ and Intel Macs.
 
 Current Mac builds are ad hoc signed while MagicSpot is a personal project. On
 first launch, macOS may require you to Control-click MagicSpot, choose **Open**,
-and confirm. Developer ID signing and Apple notarization are planned before a
-public release.
+and confirm. Developer ID signing and Apple notarization are planned for a
+future trusted-distribution release; the public repository and current
+downloads remain usable without them.
 
 Homebrew support will follow the DMG once public releases are stable. A Cask is
 an alternate installation route for the same release artifact, rather than a
