@@ -31,11 +31,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         )
         .show(ui, |ui| {
             let rect = ui.max_rect();
-            ui.painter().hline(
-                rect.x_range(),
-                rect.top() + 0.5,
-                egui::Stroke::new(1.0, palette.outline),
-            );
             let now = app.now_playing();
             let width = rect.width();
             let side = (width * 0.3).clamp(200.0, 420.0);

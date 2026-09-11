@@ -22,6 +22,27 @@ pub enum LyricsAlignment {
     Center,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LyricsFont {
+    #[default]
+    Inter,
+    Manrope,
+    Lora,
+}
+
+impl LyricsFont {
+    pub const ALL: [Self; 3] = [Self::Inter, Self::Manrope, Self::Lora];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Inter => "Inter",
+            Self::Manrope => "Manrope",
+            Self::Lora => "Lora",
+        }
+    }
+}
+
 impl LyricsAlignment {
     pub const ALL: [Self; 2] = [Self::Left, Self::Center];
 
@@ -141,6 +162,10 @@ pub struct Settings {
     /// Space after each lyric line, as a percentage of the font size.
     pub lyrics_line_spacing: u8,
     pub lyrics_alignment: LyricsAlignment,
+    /// Weight and character of the lyrics face.
+    pub lyrics_font: LyricsFont,
+    /// Draw a restrained halo behind lyric text.
+    pub lyrics_glow: bool,
     /// Strength of album-art colour in the lyrics surfaces, 0..=100.
     pub lyrics_tint_strength: u8,
     /// Estimate word progress between line timestamps for a karaoke effect.
@@ -244,6 +269,8 @@ impl Default for Settings {
             lyrics_font_size: 26,
             lyrics_line_spacing: 65,
             lyrics_alignment: LyricsAlignment::Left,
+            lyrics_font: LyricsFont::Inter,
+            lyrics_glow: false,
             lyrics_tint_strength: 22,
             lyrics_word_progress_beta: false,
             queue_width: 360.0,
@@ -347,7 +374,7 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColorTheme, LyricsAlignment, Settings, ThemeChoice};
+    use super::{ColorTheme, LyricsAlignment, LyricsFont, Settings, ThemeChoice};
 
     #[test]
     fn lyrics_size_is_backward_compatible_and_persists() {
@@ -356,6 +383,8 @@ mod tests {
         assert_eq!(older.lyrics_width, 420.0);
         assert_eq!(older.lyrics_line_spacing, 65);
         assert_eq!(older.lyrics_alignment, LyricsAlignment::Left);
+        assert_eq!(older.lyrics_font, LyricsFont::Inter);
+        assert!(!older.lyrics_glow);
         assert_eq!(older.lyrics_tint_strength, 22);
         assert_eq!(older.color_theme, ColorTheme::Aqua);
         assert!(!older.lyrics_word_progress_beta);

@@ -9,8 +9,10 @@ scale respond to the available width; there is no separate expanded mode.
 Lyrics follow the playing line by default. Select **Follow** after manually
 scrolling, or click a timed line to seek. Open **Lyrics appearance** under
 **Settings → Appearance** to adjust text size, line spacing, left or centered
-alignment, and album-art background tint. **Word-by-word lyrics (Beta)**
-estimates progress between line timestamps and is disabled by default.
+alignment, choose Inter, Manrope, or Lora type, enable a subtle glow, and set
+how much blurred album artwork shows through the background. **Word-by-word
+lyrics (Beta)** estimates progress between line timestamps and is disabled by
+default.
 
 The lyrics list has a small fixed gap below the song card. Following can center
 the active line, but scrolling to the first line does not expose a large blank
@@ -19,9 +21,10 @@ area above it.
 ## Appearance
 
 Choose Light, Dark, Follow System, or OLED at the top of Appearance settings.
-Then choose Aqua, Violet, Rose, Amber, or Neutral Gray independently. Neutral
-Gray uses darker charcoal surfaces, and both it and OLED accept album-art tint.
-Disable **Colour from album art** for a stable palette.
+Then choose the circular Aqua, Violet, Rose, Amber, or Neutral Gray swatch;
+hover a swatch to see its name. Neutral Gray uses darker charcoal surfaces,
+and both it and OLED accept album-art color. Disable **Colour from album art**
+for a stable palette.
 
 ## Playlists and albums
 

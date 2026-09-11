@@ -5,6 +5,16 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+- Fixed left lyric alignment by routing every line through one explicit
+  full-width layout path.
+- Replaced named colour-theme chips with compact circular colour swatches.
+- Replaced flat lyric tint decoration with cached blurred cover-art backdrops
+  and a clearer artwork-visibility control.
+- Added bundled Inter, Manrope, and Lora lyric faces plus an optional subtle
+  glow.
+- Removed the extra square top stroke that interfered with the rounded
+  now-playing bar corners.
+
 ## v0.8.0 — 2026-09-10
 
 - Split the queue into clearer Now Playing, manually queued, and current-context

@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-10. This is the starting point for a new maintainer, coding
+Updated 2026-09-11. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -43,9 +43,9 @@ bypasses, or unsupported lossless claims. Lossless playback is deferred until
 the legitimate Spotify/librespot stack supports it. VSCodium is the preferred
 editor, although no editor-specific project files are required.
 
-The project may become public later. Until signing, documentation, and releases
-are mature, treat it as a personal feature-rich fork and keep broadly useful
-fixes separable for possible upstream contribution.
+The repository is public, while the product remains an early personal,
+feature-rich fork. Keep broadly useful fixes separable for possible upstream
+contribution.
 
 ## Current interface decisions
 
@@ -61,15 +61,18 @@ fixes separable for possible upstream contribution.
   following until **Follow** is selected or a line is clicked.
 - The list starts with a fixed 16-point inset. Do not restore a viewport-sized
   spacer above the first line; it creates the large blank area fixed in v0.7.4.
-- Lyric size, line spacing, left/center alignment, and album-art tint strength
-  live in the collapsed Lyrics appearance menu in Appearance settings.
+- Lyric size, line spacing, left/center alignment, Inter/Manrope/Lora faces,
+  optional glow, and blurred-art visibility live in the collapsed Lyrics
+  appearance menu in Appearance settings.
 - Lyrics scroll state is keyed to the playing track. Preserve this when
   changing the follow logic so one song cannot inherit another song's offset.
 - Estimated word-by-word progress is labelled **Beta** and defaults to off. It
   interpolates between line timestamps; it is not true per-word timing.
 - Appearance choices are Dark, Light, Follow system, and OLED. Accent choices
-  are Aqua, Violet, Rose, Amber, and Neutral gray. Album-art tint is optional;
-  OLED and Neutral remain tintable.
+  use circular Aqua, Violet, Rose, Amber, and Neutral gray swatches. Album-art
+  color is optional; OLED and Neutral remain tintable.
+- Blurred lyric backdrops use a 128-pixel derived PNG made off the UI thread and
+  cached through `ArtLoader`; do not blur full-size artwork every frame.
 - The bottom player bar uses the selected theme surface rather than its own
   album tint.
 - Queue sections distinguish the playing row, manually queued rows, and the
@@ -98,6 +101,10 @@ The main UI files are `src/ui/mod.rs`, `src/ui/topbar.rs`,
   routing.
 - `src/player.rs`, `src/sink.rs`, `src/resample.rs`, `src/eq.rs`, and
   `src/limiter.rs` implement local playback and audio processing.
+- True crossfade is not implemented. The current librespot fork exposes one
+  decoder stream and gives its sink no track-boundary callback during gapless
+  playback. Crossfade requires a coordinated player change that overlaps two
+  decoded tracks; do not label the existing 10 ms skip envelope as crossfade.
 - `src/lyrics.rs` fetches and parses lyrics; `src/ui/lyrics.rs` presents them.
 - `src/settings.rs` and `src/paths.rs` define persistent formats and platform
   storage. Preserve backward compatibility when adding settings.
@@ -146,8 +153,9 @@ cargo run --locked --no-default-features --features demo -- `
 ```
 
 Useful `--demo-show` values include `lyrics`, `lyrics-expanded`, `lyrics-beta`,
-`queue`, `devices`, `light`, `neutral`, and `oled`. Allow follow-scroll
-animations to settle before judging a screenshot.
+`lyrics-center`, `lyrics-glow`, `lyrics-lora`, `queue`, `devices`, `light`,
+`neutral`, and `oled`. Allow follow-scroll animations to settle before judging
+a screenshot.
 
 ## Authentication and updates
 

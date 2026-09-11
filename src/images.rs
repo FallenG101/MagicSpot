@@ -17,6 +17,7 @@ use sha1::{Digest, Sha1};
 /// Size-based eviction keeps visible images stable.
 const HELD_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ART_BYTES: usize = 8 * 1024 * 1024;
+const BLURRED_PREFIX: &str = "magicspot-blurred:";
 
 /// Decoded ColorImage plus the GPU texture, both RGBA.
 fn decoded_and_texture_bytes(width: usize, height: usize) -> usize {
@@ -62,6 +63,11 @@ impl ArtLoader {
     /// Bytes for `url`, from memory, disk, or the network.
     pub async fn fetch(&self, url: &str) -> Result<Arc<[u8]>, String> {
         self.inner.fetch(url).await
+    }
+
+    /// A loader URI for a small, pre-blurred derivative of an artwork URL.
+    pub fn blurred_uri(url: &str) -> String {
+        format!("{BLURRED_PREFIX}{url}")
     }
 
     /// Marks artwork as visible so size-based eviction keeps it stable.
@@ -193,6 +199,16 @@ impl Inner {
     }
 
     async fn fetch(self: &Arc<Self>, url: &str) -> Result<Arc<[u8]>, String> {
+        if let Some(source) = url.strip_prefix(BLURRED_PREFIX) {
+            let bytes = self.fetch_original(source).await?;
+            return tokio::task::spawn_blocking(move || blurred_art(&bytes))
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        self.fetch_original(url).await
+    }
+
+    async fn fetch_original(self: &Arc<Self>, url: &str) -> Result<Arc<[u8]>, String> {
         if let Some(Entry::Ready {
             bytes: Some(bytes), ..
         }) = self
@@ -285,7 +301,10 @@ impl BytesLoader for ArtLoader {
     }
 
     fn load(&self, ctx: &egui::Context, uri: &str) -> BytesLoadResult {
-        if !(uri.starts_with("https://") || uri.starts_with("http://")) {
+        if !(uri.starts_with("https://")
+            || uri.starts_with("http://")
+            || uri.starts_with(BLURRED_PREFIX))
+        {
             return Err(LoadError::NotSupported);
         }
         let mut entries = self.inner.entries.lock().unwrap_or_else(|p| p.into_inner());
@@ -354,6 +373,18 @@ impl BytesLoader for ArtLoader {
             })
             .sum()
     }
+}
+
+fn blurred_art(bytes: &[u8]) -> Result<Arc<[u8]>, String> {
+    let decoded = image::load_from_memory(bytes).map_err(|error| error.to_string())?;
+    let softened = decoded
+        .resize_to_fill(128, 128, image::imageops::FilterType::Triangle)
+        .blur(10.0);
+    let mut encoded = std::io::Cursor::new(Vec::new());
+    softened
+        .write_to(&mut encoded, image::ImageFormat::Png)
+        .map_err(|error| error.to_string())?;
+    Ok(Arc::from(encoded.into_inner()))
 }
 
 /// A colour that represents an album cover, suitable for tinting a dark or
@@ -448,6 +479,20 @@ mod tests {
             color[2] > color[0],
             "expected the blue field, got {color:?}"
         );
+    }
+
+    #[test]
+    fn blurred_art_is_a_small_reusable_png() {
+        let source = image::DynamicImage::new_rgb8(24, 36);
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        source
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .unwrap();
+
+        let blurred = blurred_art(encoded.get_ref()).unwrap();
+        let decoded = image::load_from_memory(&blurred).unwrap();
+
+        assert_eq!((decoded.width(), decoded.height()), (128, 128));
     }
 
     fn held(items: &[(&str, u64, usize)]) -> Vec<(String, Instant, usize)> {

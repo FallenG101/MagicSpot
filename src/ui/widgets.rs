@@ -61,17 +61,7 @@ pub fn paint_cover(
             );
         }
 
-        let image_aspect = texture.size.x / texture.size.y;
-        let rect_aspect = rect.width() / rect.height();
-        let uv = if image_aspect > rect_aspect {
-            let visible_width = rect_aspect / image_aspect;
-            let inset = (1.0 - visible_width) / 2.0;
-            Rect::from_min_max(pos2(inset, 0.0), pos2(1.0 - inset, 1.0))
-        } else {
-            let visible_height = image_aspect / rect_aspect;
-            let inset = (1.0 - visible_height) / 2.0;
-            Rect::from_min_max(pos2(0.0, inset), pos2(1.0, 1.0 - inset))
-        };
+        let uv = cover_uv(texture.size, rect);
         egui::Image::new(texture)
             .uv(uv)
             .corner_radius(corner)
@@ -91,6 +81,55 @@ pub fn paint_cover(
         }
         let icon_size = (rect.width() * 0.42).clamp(12.0, 64.0);
         theme::paint_icon(ui, fallback, rect, icon_size, palette.dim);
+    }
+}
+
+/// Paints a cached, low-resolution blurred derivative of cover art. The blur
+/// is made off the UI thread once per cover and then reused as an ordinary
+/// texture, so a large atmospheric backdrop is cheap to draw every frame.
+pub fn paint_blurred_art(
+    ui: &Ui,
+    url: Option<&str>,
+    rect: Rect,
+    radius: f32,
+    opacity: u8,
+    art: &crate::images::ArtLoader,
+) -> bool {
+    let Some(url) = url else {
+        return false;
+    };
+    let uri = crate::images::ArtLoader::blurred_uri(url);
+    art.touch(&uri);
+    let image = egui::Image::new(uri.as_str()).show_loading_spinner(false);
+    let Ok(egui::load::TexturePoll::Ready { texture }) = image.load_for_size(ui.ctx(), rect.size())
+    else {
+        return false;
+    };
+    art.release_bytes(&uri);
+    art.note_decoded(
+        &uri,
+        texture.size.x.round() as usize,
+        texture.size.y.round() as usize,
+    );
+    egui::Image::new(texture)
+        .uv(cover_uv(texture.size, rect))
+        .tint(Color32::from_white_alpha(opacity))
+        .corner_radius(CornerRadius::same(radius.min(127.0) as u8))
+        .paint_at(ui, rect);
+    true
+}
+
+fn cover_uv(image_size: Vec2, rect: Rect) -> Rect {
+    let image_aspect = image_size.x / image_size.y;
+    let rect_aspect = rect.width() / rect.height();
+    if image_aspect > rect_aspect {
+        let visible_width = rect_aspect / image_aspect;
+        let inset = (1.0 - visible_width) / 2.0;
+        Rect::from_min_max(pos2(inset, 0.0), pos2(1.0 - inset, 1.0))
+    } else {
+        let visible_height = image_aspect / rect_aspect;
+        let inset = (1.0 - visible_height) / 2.0;
+        Rect::from_min_max(pos2(0.0, inset), pos2(1.0, 1.0 - inset))
     }
 }
 

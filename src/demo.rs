@@ -759,6 +759,13 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 app.settings.lyrics_font_size = 34;
             }
             "lyrics-beta" => app.settings.lyrics_word_progress_beta = true,
+            "lyrics-center" => {
+                app.settings.lyrics_alignment = crate::settings::LyricsAlignment::Center;
+            }
+            "lyrics-glow" => app.settings.lyrics_glow = true,
+            "lyrics-lora" => {
+                app.settings.lyrics_font = crate::settings::LyricsFont::Lora;
+            }
             "neutral" => {
                 app.settings.theme = crate::settings::ThemeChoice::Dark;
                 app.settings.color_theme = crate::settings::ColorTheme::Neutral;

@@ -5,12 +5,47 @@ use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke, Vec2};
 use crate::api::models::pick_image;
 use crate::app::App;
 use crate::model::{Action, Dialog};
-use crate::settings::{ColorTheme, LyricsAlignment, ThemeChoice};
+use crate::settings::{ColorTheme, LyricsAlignment, LyricsFont, ThemeChoice};
 use crate::theme::{self, Icon, Palette};
 
 use super::widgets;
 
 const PLAYBACK_DIRTY_ID: &str = "playback-settings-dirty";
+
+fn color_swatch(
+    ui: &mut egui::Ui,
+    palette: &Palette,
+    choice: ColorTheme,
+    selected: bool,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(30.0), egui::Sense::click());
+    let candidate = Palette::for_theme(palette.dark, choice, false);
+    let radius = if response.hovered() { 11.5 } else { 10.5 };
+    ui.painter()
+        .circle_filled(rect.center(), radius, candidate.accent);
+    ui.painter().circle_stroke(
+        rect.center(),
+        13.0,
+        Stroke::new(
+            if selected { 2.0 } else { 1.0 },
+            if selected {
+                palette.text
+            } else {
+                palette.outline
+            },
+        ),
+    );
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(
+            egui::WidgetType::RadioButton,
+            ui.is_enabled(),
+            selected,
+            choice.label(),
+        )
+    });
+    theme::focus_ring(ui, &response);
+    response.on_hover_text(choice.label())
+}
 
 fn section(
     ui: &mut egui::Ui,
@@ -482,24 +517,20 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             "Colour theme",
-            "Choose MagicSpot's accent and dark surfaces.",
+            "Choose MagicSpot's accent and surface character.",
             |ui| {
-                let options: Vec<(usize, &str)> = ColorTheme::ALL
-                    .iter()
-                    .enumerate()
-                    .map(|(index, theme)| (index, theme.label()))
-                    .collect();
-                let current = ColorTheme::ALL
-                    .iter()
-                    .position(|theme| *theme == app.settings.color_theme)
-                    .unwrap_or_default();
-                if let Some(picked) = widgets::chips(ui, &palette, &options, current)
-                    && let Some(theme) = ColorTheme::ALL.get(picked).copied()
-                    && theme != app.settings.color_theme
-                {
-                    app.settings.color_theme = theme;
-                    changed = true;
-                }
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    for choice in ColorTheme::ALL {
+                        if color_swatch(ui, &palette, choice, app.settings.color_theme == choice)
+                            .clicked()
+                            && choice != app.settings.color_theme
+                        {
+                            app.settings.color_theme = choice;
+                            changed = true;
+                        }
+                    }
+                });
             },
         );
         widgets::setting_row(
@@ -524,7 +555,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             "Lyrics appearance",
-            "Text size, spacing, alignment, and album-art tint.",
+            "Font, spacing, alignment, glow, and artwork visibility.",
             |ui| {
                 ui.menu_button("Customize", |ui| {
                     ui.set_min_width(280.0);
@@ -544,6 +575,25 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         )
                         .changed();
                     ui.add_space(6.0);
+                    theme::text(ui, "Font", theme::medium(12.5), palette.text);
+                    ui.horizontal(|ui| {
+                        for font in LyricsFont::ALL {
+                            if theme::soft_button(
+                                ui,
+                                &palette,
+                                None,
+                                font.label(),
+                                app.settings.lyrics_font == font,
+                            )
+                            .clicked()
+                                && app.settings.lyrics_font != font
+                            {
+                                app.settings.lyrics_font = font;
+                                changed = true;
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
                     theme::text(ui, "Alignment", theme::medium(12.5), palette.text);
                     ui.horizontal(|ui| {
                         for alignment in LyricsAlignment::ALL {
@@ -562,13 +612,21 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         }
                     });
                     ui.add_space(6.0);
-                    theme::text(ui, "Background tint", theme::medium(12.5), palette.text);
+                    theme::text(ui, "Artwork visibility", theme::medium(12.5), palette.text);
                     changed |= ui
                         .add(
                             egui::Slider::new(&mut app.settings.lyrics_tint_strength, 0..=100)
                                 .suffix("%"),
                         )
                         .changed();
+                    ui.add_space(6.0);
+                    changed |= widgets::switch(
+                        ui,
+                        &palette,
+                        "Subtle lyric glow",
+                        &mut app.settings.lyrics_glow,
+                    )
+                    .changed();
                     if changed {
                         app.lyrics_line_shown = None;
                     }

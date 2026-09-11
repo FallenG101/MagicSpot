@@ -244,6 +244,8 @@ pub fn titlebar_inset(ctx: &egui::Context) -> f32 {
 const INTER_MEDIUM: &str = "inter-medium";
 const INTER_SEMIBOLD: &str = "inter-semibold";
 const INTER_BOLD: &str = "inter-bold";
+const MANROPE_LYRICS: &str = "manrope-lyrics";
+const LORA_LYRICS: &str = "lora-lyrics";
 
 pub fn regular(size: f32) -> egui::FontId {
     egui::FontId::new(size, egui::FontFamily::Proportional)
@@ -259,6 +261,14 @@ pub fn semibold(size: f32) -> egui::FontId {
 
 pub fn bold(size: f32) -> egui::FontId {
     egui::FontId::new(size, egui::FontFamily::Name(INTER_BOLD.into()))
+}
+
+pub fn manrope_lyrics(size: f32) -> egui::FontId {
+    egui::FontId::new(size, egui::FontFamily::Name(MANROPE_LYRICS.into()))
+}
+
+pub fn lora_lyrics(size: f32) -> egui::FontId {
+    egui::FontId::new(size, egui::FontFamily::Name(LORA_LYRICS.into()))
 }
 
 /// Install fonts, icons, and the base style once.
@@ -429,6 +439,25 @@ fn install_fonts(ctx: &egui::Context) {
         .cloned()
         .collect();
     for name in [INTER_MEDIUM, INTER_SEMIBOLD, INTER_BOLD] {
+        let mut family = vec![name.to_owned()];
+        family.extend(fallbacks.iter().cloned());
+        fonts.families.insert(FontFamily::Name(name.into()), family);
+    }
+    for (name, bytes, weight) in [
+        (
+            MANROPE_LYRICS,
+            include_bytes!("../assets/fonts/ManropeVariable.ttf").as_slice(),
+            650.0,
+        ),
+        (
+            LORA_LYRICS,
+            include_bytes!("../assets/fonts/LoraVariable.ttf").as_slice(),
+            600.0,
+        ),
+    ] {
+        let mut data = FontData::from_static(bytes);
+        data.tweak.coords = VariationCoords::new([(b"wght", weight)]);
+        fonts.font_data.insert(name.to_owned(), Arc::new(data));
         let mut family = vec![name.to_owned()];
         family.extend(fallbacks.iter().cloned());
         fonts.families.insert(FontFamily::Name(name.into()), family);
@@ -1020,6 +1049,14 @@ mod tests {
                 Color32::WHITE,
             );
             assert!(galley.rows[0].glyphs.len() >= 5);
+            for font in [manrope_lyrics(18.0), lora_lyrics(18.0)] {
+                let galley = ui.painter().layout_no_wrap(
+                    "A different lyric face".to_string(),
+                    font,
+                    Color32::WHITE,
+                );
+                assert!(!galley.rows[0].glyphs.is_empty());
+            }
         });
         output.textures_delta.clear();
     }

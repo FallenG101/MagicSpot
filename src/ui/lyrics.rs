@@ -5,7 +5,7 @@ use egui::{Align, Frame, Layout, Margin, Sense};
 
 use crate::app::App;
 use crate::model::{Action, Loadable};
-use crate::settings::LyricsAlignment;
+use crate::settings::{LyricsAlignment, LyricsFont};
 use crate::theme::{self, Icon};
 
 use super::widgets;
@@ -32,6 +32,27 @@ fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expand
     let strength = f32::from(app.settings.lyrics_tint_strength.min(100)) / 100.0;
     let glass = blend(palette.panel, tint, strength);
     ui.painter().rect_filled(rect, 24.0, glass);
+    if app.settings.accent_from_art {
+        let opacity = (55.0 + strength * 150.0).round() as u8;
+        widgets::paint_blurred_art(
+            ui,
+            now.art_url.as_deref().or(now.art_small.as_deref()),
+            rect,
+            24.0,
+            opacity,
+            app.backend.art(),
+        );
+        ui.painter().rect_filled(
+            rect,
+            24.0,
+            egui::Color32::from_rgba_unmultiplied(
+                palette.panel.r(),
+                palette.panel.g(),
+                palette.panel.b(),
+                (155.0 - strength * 65.0).round() as u8,
+            ),
+        );
+    }
     ui.painter().rect_stroke(
         rect,
         24.0,
@@ -44,13 +65,6 @@ fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expand
             },
         ),
         egui::StrokeKind::Inside,
-    );
-    let glow_alpha = (strength * 190.0).round() as u8;
-    let glow = egui::Color32::from_rgba_unmultiplied(tint.r(), tint.g(), tint.b(), glow_alpha);
-    ui.painter().circle_filled(
-        egui::pos2(rect.right() - 30.0, rect.top() + 20.0),
-        height * 0.42,
-        glow,
     );
     ui.painter().line_segment(
         [
@@ -156,6 +170,64 @@ fn paint_edge_fades(ui: &egui::Ui, rect: egui::Rect, color: egui::Color32) {
     }
 }
 
+fn lyrics_font(choice: LyricsFont, size: f32) -> egui::FontId {
+    match choice {
+        LyricsFont::Inter => theme::bold(size),
+        LyricsFont::Manrope => theme::manrope_lyrics(size),
+        LyricsFont::Lora => theme::lora_lyrics(size),
+    }
+}
+
+fn lyric_galley(
+    ui: &egui::Ui,
+    text: &str,
+    font: egui::FontId,
+    color: egui::Color32,
+    width: f32,
+    _alignment: LyricsAlignment,
+) -> std::sync::Arc<egui::Galley> {
+    if crate::bidi::is_rtl(text) {
+        return crate::bidi::layout(ui.painter(), text, font, color, width, usize::MAX, None);
+    }
+    let mut job = LayoutJob::simple(text.to_owned(), font, color, width);
+    job.wrap.break_anywhere = false;
+    // Place the completed paragraph as a block below. Asking epaint to center
+    // inside its wrap width can give the galley negative glyph coordinates.
+    job.halign = Align::LEFT;
+    ui.painter().layout_job(job)
+}
+
+fn paint_lyric_galley(
+    ui: &mut egui::Ui,
+    galley: std::sync::Arc<egui::Galley>,
+    glow: Option<std::sync::Arc<egui::Galley>>,
+    alignment: LyricsAlignment,
+    sense: Sense,
+) -> egui::Response {
+    let width = ui.available_width();
+    let height = galley.size().y.max(1.0);
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, height), sense);
+    let x = match alignment {
+        LyricsAlignment::Left => rect.left(),
+        LyricsAlignment::Center => rect.center().x - galley.size().x * 0.5,
+    };
+    let position = egui::pos2(x.max(rect.left()), rect.top());
+    if let Some(glow) = glow {
+        for offset in [
+            egui::vec2(-0.7, 0.0),
+            egui::vec2(0.7, 0.0),
+            egui::vec2(0.0, -0.7),
+            egui::vec2(0.0, 0.7),
+        ] {
+            ui.painter()
+                .galley(position + offset, glow.clone(), egui::Color32::TRANSPARENT);
+        }
+    }
+    ui.painter()
+        .galley(position, galley, egui::Color32::TRANSPARENT);
+    response
+}
+
 /// Reveals complete words across the time available to a line. Spotify and
 /// LRCLIB only supply line timestamps, so this is deliberately an estimate.
 fn word_progress_offset(text: &str, position_ms: u32, start_ms: u32, end_ms: u32) -> usize {
@@ -212,6 +284,32 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                 .inner_margin(Margin::symmetric(20, 16)),
         );
     let response = panel.show(ui, |ui| {
+        if app.settings.accent_from_art
+            && app.settings.lyrics_tint_strength > 0
+            && let Some(now) = app.now_playing()
+        {
+            let backdrop = ui.max_rect();
+            let opacity =
+                (70.0 + f32::from(app.settings.lyrics_tint_strength.min(100)) * 1.65).round() as u8;
+            widgets::paint_blurred_art(
+                ui,
+                now.art_url.as_deref().or(now.art_small.as_deref()),
+                backdrop,
+                12.0,
+                opacity,
+                app.backend.art(),
+            );
+            ui.painter().rect_filled(
+                backdrop,
+                12.0,
+                egui::Color32::from_rgba_unmultiplied(
+                    palette.panel.r(),
+                    palette.panel.g(),
+                    palette.panel.b(),
+                    118,
+                ),
+            );
+        }
         let window_controls = super::window_controls_reservation(
             ui.ctx(),
             app.show_queue_panel,
@@ -352,7 +450,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                 palette.secondary
             };
             let color = blend(quiet, palette.text, lit);
-            let font = theme::bold(line_size);
+            let font = lyrics_font(app.settings.lyrics_font, line_size);
             // A timed line with no words is the band playing on.
             let text = if line.text.is_empty() && lyrics.synced {
                 "\u{266a}"
@@ -364,18 +462,8 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
             } else {
                 Sense::hover()
             };
-            let response = if crate::bidi::is_rtl(text) {
-                let galley = crate::bidi::layout(
-                    ui.painter(),
-                    text,
-                    font,
-                    color,
-                    ui.available_width(),
-                    usize::MAX,
-                    None,
-                );
-                ui.add(egui::Label::new(galley).sense(sense))
-            } else if is_active && lyrics.synced && app.settings.lyrics_word_progress_beta {
+            let width = ui.available_width();
+            let galley = if is_active && lyrics.synced && app.settings.lyrics_word_progress_beta {
                 let start = line.at_ms.unwrap_or(now.position_ms);
                 let end = lyrics
                     .lines
@@ -386,10 +474,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                 let offset = word_progress_offset(text, now.position_ms, start, end);
                 let mut job = LayoutJob::default();
                 job.wrap.max_width = ui.available_width();
-                job.halign = match alignment {
-                    LyricsAlignment::Left => Align::LEFT,
-                    LyricsAlignment::Center => Align::Center,
-                };
+                job.halign = Align::LEFT;
                 job.append(
                     &text[..offset],
                     0.0,
@@ -403,26 +488,31 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                     &text[offset..],
                     0.0,
                     TextFormat {
-                        font_id: font,
+                        font_id: font.clone(),
                         color: palette.dim,
                         ..Default::default()
                     },
                 );
-                ui.add_sized(
-                    [ui.available_width(), 0.0],
-                    egui::Label::new(job).sense(sense),
-                )
+                ui.painter().layout_job(job)
             } else {
-                ui.add_sized(
-                    [ui.available_width(), 0.0],
-                    egui::Label::new(egui::RichText::new(text).font(font).color(color))
-                        .halign(match alignment {
-                            LyricsAlignment::Left => Align::LEFT,
-                            LyricsAlignment::Center => Align::Center,
-                        })
-                        .sense(sense),
-                )
+                lyric_galley(ui, text, font.clone(), color, width, alignment)
             };
+            let glow = app.settings.lyrics_glow.then(|| {
+                lyric_galley(
+                    ui,
+                    text,
+                    font,
+                    egui::Color32::from_rgba_unmultiplied(
+                        palette.accent.r(),
+                        palette.accent.g(),
+                        palette.accent.b(),
+                        34,
+                    ),
+                    width,
+                    alignment,
+                )
+            });
+            let response = paint_lyric_galley(ui, galley, glow, alignment, sense);
             let rect = response.rect;
             if lyrics.synced {
                 let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);

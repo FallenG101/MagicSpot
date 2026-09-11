@@ -29,11 +29,12 @@ Spotify.
 - Responsive navigation with compact search, destination-aware history, mouse
   Back/Forward support, and stable access to utilities at narrow widths.
 - A resizable lyrics panel with a large album card and no separate expand mode.
-- Adjustable lyric size, spacing, alignment, and album-art tint, plus optional
-  word-by-word highlighting marked **Beta** and disabled by default.
+- Adjustable lyric size, spacing, alignment, Inter/Manrope/Lora font, subtle
+  glow, and blurred album-art backdrop, plus optional word-by-word highlighting
+  marked **Beta** and disabled by default.
 - Light, Dark, Follow System, and OLED appearances.
-- Aqua, Violet, Rose, Amber, and Neutral Gray accents. Neutral Gray and OLED
-  support album-art tinting while keeping their darker base surfaces.
+- Circular Aqua, Violet, Rose, Amber, and Neutral Gray accent swatches. Neutral
+  Gray and OLED support album-art color while keeping their darker surfaces.
 - Independent MagicSpot executable, application IDs, data directories, icons,
   installers, command protocol, and built-in Winamp skin.
 
@@ -159,7 +160,8 @@ Maintainers and coding agents should also read the current
 
 MagicSpot uses [Fastpotify](https://github.com/crmne/fastpotify),
 [librespot](https://github.com/librespot-org/librespot),
-[egui](https://github.com/emilk/egui), the Inter typeface, and Lucide icons.
+[egui](https://github.com/emilk/egui), the Inter, Manrope, and Lora typefaces,
+and Lucide icons.
 See [LICENSE](LICENSE) for the MIT License and retained copyright notice.
 
 Spotify is a trademark of Spotify AB. MagicSpot is an independent project and
