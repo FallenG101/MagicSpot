@@ -16,11 +16,23 @@ pub fn page(app: &mut App, ui: &mut egui::Ui) {
     ui.add_space(8.0);
     // The queue refreshes on track changes, additions, and while visible.
     let offer_save = !app.queue_playlist_uris().is_empty();
+    let upcoming = app.queue.get().map_or(0, |queue| queue.queue.len());
     ui.horizontal(|ui| {
-        theme::text(ui, "Queue", theme::bold(28.0), palette.text);
+        ui.vertical(|ui| {
+            theme::text(ui, "Queue", theme::bold(28.0), palette.text);
+            theme::text(
+                ui,
+                format!("{upcoming} upcoming"),
+                theme::regular(12.5),
+                palette.secondary,
+            );
+        });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if save_button(ui, &palette, offer_save) {
                 app.actions.push(Action::SaveQueueAsPlaylist);
+            }
+            if refresh_button(ui, &palette) {
+                app.actions.push(Action::RefreshQueue);
             }
         });
     });
@@ -121,6 +133,18 @@ fn save_button(ui: &mut egui::Ui, palette: &crate::theme::Palette, offer: bool) 
         .clicked()
 }
 
+fn refresh_button(ui: &mut egui::Ui, palette: &crate::theme::Palette) -> bool {
+    theme::icon_button(
+        ui,
+        Icon::Refresh,
+        18.0,
+        palette.secondary,
+        palette.text,
+        "Refresh queue",
+    )
+    .clicked()
+}
+
 /// Clears manual rows from the active local queue.
 fn clear_button(app: &mut App, ui: &mut egui::Ui) {
     if !app.can_clear_queue() {
@@ -174,26 +198,37 @@ fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
         theme::text(ui, "Now playing", theme::semibold(14.0), palette.text);
         ui.add_space(4.0);
         let context = RowContext::Uris(Arc::from([current.uri().to_string()]));
-        widgets::track_row(
-            ui,
-            app,
-            TrackRow {
-                index: 0,
-                number: Some(1),
-                item: current,
-                context: &context,
-                show_cover: true,
-                show_album: !compact,
-                added_at: None,
-                added_by: None,
-                show_added_by: false,
-                compact,
-                thin: false,
-                shift: 0.0,
-                picked: false,
-                picked_songs: &[],
-            },
-        );
+        Frame::new()
+            .fill(
+                palette
+                    .accent
+                    .gamma_multiply(if palette.dark { 0.10 } else { 0.07 }),
+            )
+            .stroke(egui::Stroke::new(1.0, palette.outline))
+            .corner_radius(egui::CornerRadius::same(12))
+            .inner_margin(Margin::symmetric(6, 6))
+            .show(ui, |ui| {
+                widgets::track_row(
+                    ui,
+                    app,
+                    TrackRow {
+                        index: 0,
+                        number: None,
+                        item: current,
+                        context: &context,
+                        show_cover: true,
+                        show_album: !compact,
+                        added_at: None,
+                        added_by: None,
+                        show_added_by: false,
+                        compact,
+                        thin: false,
+                        shift: 0.0,
+                        picked: false,
+                        picked_songs: &[],
+                    },
+                );
+            });
         ui.add_space(14.0);
     }
     if queue_is_empty(app) {
@@ -220,25 +255,44 @@ fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
         // The trash sits with the songs it removes: only this section is
         // the user's to clear, the context below plays itself.
         ui.horizontal(|ui| {
-            theme::text(ui, "Playing next", theme::semibold(14.0), palette.text);
+            theme::text(
+                ui,
+                format!("Playing next · {queued_len}"),
+                theme::semibold(14.0),
+                palette.text,
+            );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 clear_button(app, ui);
             });
         });
         ui.add_space(4.0);
+        if !app.can_edit_queue() {
+            theme::text(
+                ui,
+                "Local playback enables queue editing.",
+                theme::regular(11.5),
+                palette.dim,
+            );
+            ui.add_space(4.0);
+        }
         let gap = ui.spacing().item_spacing.y;
         widgets::virtual_rows(ui, queued_len, row_height + gap, |ui, index| {
             let width = ui.available_width();
-            queue_row(app, ui, index, compact);
+            queue_row(app, ui, index, compact, Some(queued_len));
             ui.allocate_space(egui::vec2(width, gap));
         });
         ui.add_space(14.0);
     }
     if queue_len > queued_len {
-        theme::text(ui, "Next up", theme::semibold(14.0), palette.text);
+        theme::text(
+            ui,
+            format!("From current context · {}", queue_len - queued_len),
+            theme::semibold(14.0),
+            palette.text,
+        );
         ui.add_space(4.0);
         widgets::virtual_rows(ui, queue_len - queued_len, row_height, |ui, index| {
-            queue_row(app, ui, queued_len + index, compact);
+            queue_row(app, ui, queued_len + index, compact, None);
         });
     }
 }
@@ -351,7 +405,14 @@ fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
 
 /// One row of the queue, numbered and indexed by its place in the whole
 /// queue, whichever section it sits in.
-fn queue_row(app: &mut App, ui: &mut egui::Ui, index: usize, compact: bool) {
+fn queue_row(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    index: usize,
+    compact: bool,
+    editable_len: Option<usize>,
+) {
+    let palette = app.palette;
     let Some(item) = app
         .queue
         .get()
@@ -360,24 +421,84 @@ fn queue_row(app: &mut App, ui: &mut egui::Ui, index: usize, compact: bool) {
     else {
         return;
     };
-    widgets::track_row(
-        ui,
-        app,
-        TrackRow {
-            index,
-            number: Some(index + 1),
-            item: &item,
-            context: &RowContext::Queue,
-            show_cover: true,
-            show_album: !compact,
-            added_at: None,
-            added_by: None,
-            show_added_by: false,
-            compact,
-            thin: false,
-            shift: 0.0,
-            picked: false,
-            picked_songs: &[],
-        },
-    );
+    let editable = editable_len.is_some() && app.can_edit_queue();
+    ui.horizontal(|ui| {
+        let controls_width = if editable { 100.0 } else { 0.0 };
+        let row_width = (ui.available_width() - controls_width).max(120.0);
+        ui.allocate_ui_with_layout(
+            egui::vec2(
+                row_width,
+                if compact {
+                    theme::COMPACT_ROW_HEIGHT
+                } else {
+                    theme::ROW_HEIGHT
+                },
+            ),
+            Layout::top_down(Align::Min),
+            |ui| {
+                widgets::track_row(
+                    ui,
+                    app,
+                    TrackRow {
+                        index,
+                        number: Some(index + 1),
+                        item: &item,
+                        context: &RowContext::Queue,
+                        show_cover: true,
+                        show_album: !compact,
+                        added_at: None,
+                        added_by: None,
+                        show_added_by: false,
+                        compact,
+                        thin: false,
+                        shift: 0.0,
+                        picked: false,
+                        picked_songs: &[],
+                    },
+                );
+            },
+        );
+        if let Some(len) = editable_len.filter(|_| editable) {
+            let up = theme::icon_button(
+                ui,
+                Icon::ChevronUp,
+                16.0,
+                palette.secondary,
+                palette.text,
+                "Move earlier",
+            );
+            if index > 0 && up.clicked() {
+                app.actions.push(Action::MoveQueueItem {
+                    from: index,
+                    to: index - 1,
+                });
+            }
+            let down = theme::icon_button(
+                ui,
+                Icon::ChevronDown,
+                16.0,
+                palette.secondary,
+                palette.text,
+                "Move later",
+            );
+            if index + 1 < len && down.clicked() {
+                app.actions.push(Action::MoveQueueItem {
+                    from: index,
+                    to: index + 1,
+                });
+            }
+            if theme::icon_button(
+                ui,
+                Icon::Trash,
+                16.0,
+                palette.secondary,
+                palette.danger,
+                "Remove from queue",
+            )
+            .clicked()
+            {
+                app.actions.push(Action::RemoveQueueItem(index));
+            }
+        }
+    });
 }

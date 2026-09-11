@@ -5,6 +5,12 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+- Split the queue into clearer Now Playing, manually queued, and current-context
+  sections with counts, refresh/save controls, and a stronger playing card.
+- Added remove and move-earlier/later controls for manual queue rows while
+  MagicSpot controls local playback.
+- Made the top bar adapt at narrow widths, kept utility features in the account
+  menu, added destination-aware Back/Forward hints, and let Escape close panels.
 - Reworked playlist and album headers into rounded, responsive stages with
   larger right-side artwork on wide windows and a stacked narrow layout.
 - Improved narrow playlist actions and made the current track easier to find

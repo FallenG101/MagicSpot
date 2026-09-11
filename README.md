@@ -24,6 +24,10 @@ Spotify.
   inset content canvas, and contained player bar.
 - Rounded, responsive playlist and album headers with prominent artwork and
   cleaner narrow-window actions.
+- A structured queue with local reorder/removal controls, current-context
+  separation, recent history, and save-as-playlist support.
+- Responsive navigation with compact search, destination-aware history, mouse
+  Back/Forward support, and stable access to utilities at narrow widths.
 - A resizable lyrics panel with a large album card and no separate expand mode.
 - Adjustable lyric size, spacing, alignment, and album-art tint, plus optional
   word-by-word highlighting marked **Beta** and disabled by default.

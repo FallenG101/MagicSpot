@@ -71,6 +71,14 @@ fixes separable for possible upstream contribution.
   OLED and Neutral remain tintable.
 - The bottom player bar uses the selected theme surface rather than its own
   album tint.
+- Queue sections distinguish the playing row, manually queued rows, and the
+  current context. Manual rows can be moved or removed only when the local
+  MagicSpot player is active; this is implemented by clearing and rebuilding
+  librespot's manual queue while preserving context rows.
+- The top bar switches to compact navigation below 780 points and an icon-only
+  search below 560 points. Account-menu entries keep hidden utilities reachable.
+- Back/Forward hints name their destination. Alt+arrow and extra mouse-button
+  navigation remain supported, and Escape closes the outermost open panel.
 
 The main UI files are `src/ui/mod.rs`, `src/ui/topbar.rs`,
 `src/ui/sidebar.rs`, `src/ui/player_bar.rs`, `src/ui/collection.rs`, and
@@ -201,7 +209,8 @@ are the strongest candidates to contribute independently to Fastpotify.
   lyric presentation controls. Finish user review before versioning or making
   a hosted release; no GitHub workflow has been triggered for this work.
 - Add a custom theme editor after the current collection and lyric work settles.
-- Improve first-connection feedback and queue interactions.
+- Improve first-connection feedback. The main queue interaction pass is now in
+  the local v0.8.0 workstream.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
 - Add Developer ID signing, notarization, and possibly a Homebrew Cask as the

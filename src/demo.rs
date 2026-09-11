@@ -618,6 +618,28 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                         .collect();
                 }
             }
+            "local-queue" => {
+                let sample = track(0);
+                let art_url = sample.image(300).map(str::to_string);
+                let art_small_url = sample.image(64).map(str::to_string);
+                app.remote = None;
+                app.local.playback = crate::player::Playback::Playing;
+                app.local.track = Some(crate::player::LocalTrack {
+                    uri: sample.uri,
+                    title: sample.name,
+                    artists: sample
+                        .artists
+                        .into_iter()
+                        .map(|artist| artist.name)
+                        .collect(),
+                    album: sample.album.map_or_else(String::new, |album| album.name),
+                    art_url,
+                    art_small_url,
+                    duration_ms: sample.duration_ms,
+                    is_episode: false,
+                });
+                app.local.position_ms = 83_000;
+            }
             "recents" => {
                 app.show_queue_panel = true;
                 app.queue_tab = QueueTab::Recents;

@@ -3001,9 +3001,11 @@ impl App {
 
     /// Whether the active local queue has rows that can be cleared.
     pub fn can_clear_queue(&self) -> bool {
-        self.local.is_active()
-            && matches!(self.target(), Target::Local)
-            && self.queued_rows_len() > 0
+        self.can_edit_queue() && self.queued_rows_len() > 0
+    }
+
+    pub fn can_edit_queue(&self) -> bool {
+        self.local.is_active() && matches!(self.target(), Target::Local)
     }
 
     /// Clears manually queued tracks while keeping the context's upcoming rows.
@@ -3042,6 +3044,63 @@ impl App {
         // Refresh to remove queued tracks added by another client.
         self.queue_recheck_at = Some(Instant::now() + QUEUE_RECHECK);
         self.toast("Queue cleared");
+    }
+
+    /// Replaces the local player's manual queue with the order held in
+    /// `manual_queue`. librespot exposes clear and append operations, so a
+    /// small rewrite is the dependable way to remove or reorder one row.
+    fn rewrite_manual_queue(&mut self) {
+        self.pending_queue_adds.clear();
+        self.backend.player(PlayerCommand::ClearQueue);
+        for uri in self.manual_queue.clone() {
+            self.backend.player(PlayerCommand::AddToQueue(uri));
+        }
+        self.queue_recheck_at = Some(Instant::now() + QUEUE_RECHECK);
+        self.session_dirty = true;
+    }
+
+    fn remove_queue_item(&mut self, index: usize) {
+        if !self.can_edit_queue()
+            || index >= self.queued_rows_len()
+            || index >= self.manual_queue.len()
+        {
+            return;
+        }
+        let label = self
+            .queue
+            .get()
+            .and_then(|queue| queue.queue.get(index))
+            .map(|item| item.name().to_string())
+            .unwrap_or_else(|| "song".to_string());
+        self.manual_queue.remove(index);
+        if let Loadable::Loaded(queue) = &mut self.queue
+            && index < queue.queue.len()
+        {
+            queue.queue.remove(index);
+        }
+        self.rewrite_manual_queue();
+        self.toast(format!("Removed {label} from the queue"));
+    }
+
+    fn move_queue_item(&mut self, from: usize, to: usize) {
+        let queued = self.queued_rows_len();
+        if !self.can_edit_queue()
+            || from >= queued
+            || to >= queued
+            || from >= self.manual_queue.len()
+            || to >= self.manual_queue.len()
+            || from == to
+        {
+            return;
+        }
+        let uri = self.manual_queue.remove(from);
+        self.manual_queue.insert(to, uri);
+        if let Loadable::Loaded(queue) = &mut self.queue {
+            let item = queue.queue.remove(from);
+            queue.queue.insert(to, item);
+        }
+        self.rewrite_manual_queue();
+        self.toast("Queue order updated");
     }
 
     /// Current and upcoming track URIs, deduplicated in playback order.
@@ -4327,8 +4386,18 @@ impl App {
         self.history_index > 0
     }
 
+    pub fn back_destination(&self) -> Option<&Page> {
+        self.history_index
+            .checked_sub(1)
+            .and_then(|index| self.history.get(index))
+    }
+
     pub fn can_go_forward(&self) -> bool {
         self.history_index + 1 < self.history.len()
+    }
+
+    pub fn forward_destination(&self) -> Option<&Page> {
+        self.history.get(self.history_index + 1)
     }
 
     // ---- playback --------------------------------------------------------------
@@ -5650,6 +5719,8 @@ impl App {
                 self.backend.send(Command::DiscoverReceivers);
             }
             Action::ClearQueue => self.clear_queue(),
+            Action::RemoveQueueItem(index) => self.remove_queue_item(index),
+            Action::MoveQueueItem { from, to } => self.move_queue_item(from, to),
             Action::SaveQueueAsPlaylist => self.save_queue_as_playlist(),
             Action::RefreshQueue => self.refresh_queue(true),
             Action::CopyLink(uri) => {
@@ -7583,6 +7654,36 @@ mod tests {
             app.queue_recheck_at.is_some(),
             "a fetch follows to sweep rows queued from other devices"
         );
+    }
+
+    #[test]
+    fn manual_queue_rows_can_be_reordered_and_removed_without_touching_context() {
+        let ctx = egui::Context::default();
+        let mut app = headless_app();
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "spotify:track:a".into(),
+            ..Default::default()
+        });
+        app.local.playback = Playback::Playing;
+        app.manual_queue = vec!["spotify:track:b".into(), "spotify:track:c".into()];
+        app.queue = loaded_queue(
+            "spotify:track:a",
+            &["spotify:track:b", "spotify:track:c", "spotify:track:d"],
+        );
+
+        app.apply(Action::MoveQueueItem { from: 1, to: 0 }, &ctx);
+        assert_eq!(app.manual_queue, vec!["spotify:track:c", "spotify:track:b"]);
+        let (_, next) = queue_uris(&app);
+        assert_eq!(
+            next,
+            vec!["spotify:track:c", "spotify:track:b", "spotify:track:d"]
+        );
+
+        app.apply(Action::RemoveQueueItem(1), &ctx);
+        assert_eq!(app.manual_queue, vec!["spotify:track:c"]);
+        let (_, next) = queue_uris(&app);
+        assert_eq!(next, vec!["spotify:track:c", "spotify:track:d"]);
+        assert!(app.queue_recheck_at.is_some());
     }
 
     /// Play next inserts after manual queue rows and before context rows.

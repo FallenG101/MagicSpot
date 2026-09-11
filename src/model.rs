@@ -111,6 +111,25 @@ pub enum Page {
 }
 
 impl Page {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Page::Home => "Home",
+            Page::TopSongs => "Top songs",
+            Page::Search => "Search",
+            Page::LikedSongs => "Liked Songs",
+            Page::Albums => "Albums",
+            Page::Artists => "Artists",
+            Page::Podcasts => "Podcasts",
+            Page::Episodes => "Episodes",
+            Page::Playlist(_) => "Playlist",
+            Page::Album(_) => "Album",
+            Page::Artist(_) => "Artist",
+            Page::Show(_) => "Podcast",
+            Page::Queue => "Queue",
+            Page::Settings => "Settings",
+        }
+    }
+
     pub fn encode(&self) -> String {
         match self {
             Page::Home => "home".into(),
@@ -168,6 +187,18 @@ impl Page {
             "show" => Page::Show(id),
             _ => return None,
         })
+    }
+}
+
+#[cfg(test)]
+mod page_tests {
+    use super::Page;
+
+    #[test]
+    fn navigation_labels_are_human_readable() {
+        assert_eq!(Page::LikedSongs.label(), "Liked Songs");
+        assert_eq!(Page::Playlist("anything".into()).label(), "Playlist");
+        assert_eq!(Page::Show("anything".into()).label(), "Podcast");
     }
 }
 
@@ -783,6 +814,13 @@ pub enum Action {
     RefreshDevices,
     /// Empty Next up of its queued songs, keeping the context's own.
     ClearQueue,
+    /// Remove one manually queued row by its position in Playing next.
+    RemoveQueueItem(usize),
+    /// Move one manually queued row to another position in Playing next.
+    MoveQueueItem {
+        from: usize,
+        to: usize,
+    },
     /// Save the current and upcoming queue as a playlist.
     SaveQueueAsPlaylist,
     RefreshQueue,

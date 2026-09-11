@@ -30,6 +30,20 @@ the window is wide. Narrow windows stack the artwork over the title and move a
 playlist's filter below its actions. The active track has an accent surface as
 well as an accent title, so it remains visible while scanning a long list.
 
+## Queue and navigation
+
+The queue separates **Now playing**, **Playing next**, and tracks coming from
+the current context. When this computer is the active MagicSpot player, the
+buttons beside a manually queued song move it earlier or later or remove it.
+Spotify does not expose those edits for another active device, so remote queues
+remain readable and playable without edit controls. The queue can also be
+refreshed, cleared, or saved as a private playlist.
+
+Back and Forward support `Alt+Left` / `Alt+Right` and extra mouse buttons, and
+their tooltips name the destination. At narrow widths the search field becomes
+a search button and secondary utilities move into the account menu. `Escape`
+closes the open popup, lyrics panel, or queue panel.
+
 ## Common shortcuts
 
 | Shortcut | Action |

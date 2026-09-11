@@ -50,6 +50,8 @@ fn nav_button(
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let width = ui.available_width();
+    let compact = width < 780.0;
+    let icon_search = width < 560.0;
     let window_controls = super::window_controls_reservation(
         ui.ctx(),
         app.show_queue_panel,
@@ -91,15 +93,31 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             {
                 app.actions.push(Action::Open(Page::Home));
             }
-            if nav_button(ui, &palette, Icon::ChevronLeft, app.can_go_back(), "Back").clicked() {
+            let back_tip = app.back_destination().map_or_else(
+                || "Back".to_string(),
+                |page| format!("Back to {}", page.label()),
+            );
+            if nav_button(
+                ui,
+                &palette,
+                Icon::ChevronLeft,
+                app.can_go_back(),
+                &back_tip,
+            )
+            .clicked()
+            {
                 app.actions.push(Action::Back);
             }
+            let forward_tip = app.forward_destination().map_or_else(
+                || "Forward".to_string(),
+                |page| format!("Forward to {}", page.label()),
+            );
             if nav_button(
                 ui,
                 &palette,
                 Icon::ChevronRight,
                 app.can_go_forward(),
-                "Forward",
+                &forward_tip,
             )
             .clicked()
             {
@@ -107,37 +125,48 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             }
             ui.add_space(8.0);
 
-            let search_room = (ui.available_width() - window_controls.topbar_width).max(0.0);
-            let search_width = (search_room * 0.5).clamp(200.0, 440.0);
-            let id = egui::Id::new("global-search");
-            let before = app.search.query.clone();
-            let response = super::widgets::search_field(
-                ui,
-                &palette,
-                id,
-                &mut app.search.query,
-                "What do you want to play?",
-                search_width,
-            );
-            if app.search.focus_requested {
-                app.search.focus_requested = false;
-                response.request_focus();
-            }
-            if response.gained_focus() && !matches!(app.page(), Page::Search) {
-                app.actions.push(Action::Open(Page::Search));
-            }
-            if app.search.query != before {
-                app.search.typed_at = Some(std::time::Instant::now());
-                if !matches!(app.page(), Page::Search) {
+            if icon_search {
+                if nav_button(ui, &palette, Icon::Search, true, "Search").clicked() {
+                    app.actions.push(Action::Open(Page::Search));
+                    app.actions.push(Action::FocusSearch);
+                }
+            } else {
+                let search_room = (ui.available_width() - window_controls.topbar_width).max(0.0);
+                let search_width = if compact {
+                    (search_room * 0.42).clamp(150.0, 260.0)
+                } else {
+                    (search_room * 0.5).clamp(200.0, 440.0)
+                };
+                let id = egui::Id::new("global-search");
+                let before = app.search.query.clone();
+                let response = super::widgets::search_field(
+                    ui,
+                    &palette,
+                    id,
+                    &mut app.search.query,
+                    "What do you want to play?",
+                    search_width,
+                );
+                if app.search.focus_requested {
+                    app.search.focus_requested = false;
+                    response.request_focus();
+                }
+                if response.gained_focus() && !matches!(app.page(), Page::Search) {
                     app.actions.push(Action::Open(Page::Search));
                 }
-            }
-            if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
-                let query = app.search.query.clone();
-                app.actions.push(Action::Search(query));
-            }
-            if response.has_focus() && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
-                response.surrender_focus();
+                if app.search.query != before {
+                    app.search.typed_at = Some(std::time::Instant::now());
+                    if !matches!(app.page(), Page::Search) {
+                        app.actions.push(Action::Open(Page::Search));
+                    }
+                }
+                if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+                    let query = app.search.query.clone();
+                    app.actions.push(Action::Search(query));
+                }
+                if response.has_focus() && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+                    response.surrender_focus();
+                }
             }
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -232,55 +261,74 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                             app.actions
                                 .push(Action::ShowDialog(crate::model::Dialog::Shortcuts));
                         }
+                        if super::widgets::menu_item(
+                            ui,
+                            &palette,
+                            Some(Icon::Shrink),
+                            "Winamp mini player",
+                        ) {
+                            app.actions.push(Action::ToggleWinampWindow);
+                        }
+                        if super::widgets::menu_item(
+                            ui,
+                            &palette,
+                            Some(Icon::AudioLines),
+                            "MilkDrop visualiser",
+                        ) {
+                            app.actions.push(Action::ToggleWinampMilkdrop);
+                        }
                         super::widgets::menu_separator(ui, &palette);
                         if super::widgets::menu_item(ui, &palette, Some(Icon::LogOut), "Sign out") {
                             app.actions.push(Action::SignOut);
                         }
                     });
                 ui.add_space(4.0);
-                if theme::icon_button(
-                    ui,
-                    Icon::Settings,
-                    19.0,
-                    palette.secondary,
-                    palette.text,
-                    "Settings",
-                )
-                .clicked()
+                if !compact
+                    && theme::icon_button(
+                        ui,
+                        Icon::Settings,
+                        19.0,
+                        palette.secondary,
+                        palette.text,
+                        "Settings",
+                    )
+                    .clicked()
                 {
                     app.actions.push(Action::Open(Page::Settings));
                 }
-                if theme::icon_button(
-                    ui,
-                    Icon::AudioLines,
-                    19.0,
-                    if app.settings.milkdrop_open {
-                        palette.accent
-                    } else {
-                        palette.secondary
-                    },
-                    palette.text,
-                    super::keys::platform_shortcut(
-                        "MilkDrop visualiser (Ctrl+Shift+K)",
-                        "MilkDrop visualiser (Cmd+Shift+K)",
-                    ),
-                )
-                .clicked()
+                if !compact
+                    && theme::icon_button(
+                        ui,
+                        Icon::AudioLines,
+                        19.0,
+                        if app.settings.milkdrop_open {
+                            palette.accent
+                        } else {
+                            palette.secondary
+                        },
+                        palette.text,
+                        super::keys::platform_shortcut(
+                            "MilkDrop visualiser (Ctrl+Shift+K)",
+                            "MilkDrop visualiser (Cmd+Shift+K)",
+                        ),
+                    )
+                    .clicked()
                 {
                     app.actions.push(Action::ToggleWinampMilkdrop);
                 }
-                if theme::icon_button(
-                    ui,
-                    Icon::Shrink,
-                    19.0,
-                    palette.secondary,
-                    palette.text,
-                    super::keys::platform_shortcut(
-                        "Winamp mini player (Ctrl+M)",
-                        "Winamp mini player (Cmd+Shift+M)",
-                    ),
-                )
-                .clicked()
+                if !compact
+                    && theme::icon_button(
+                        ui,
+                        Icon::Shrink,
+                        19.0,
+                        palette.secondary,
+                        palette.text,
+                        super::keys::platform_shortcut(
+                            "Winamp mini player (Ctrl+M)",
+                            "Winamp mini player (Cmd+Shift+M)",
+                        ),
+                    )
+                    .clicked()
                 {
                     app.actions.push(Action::ToggleWinampWindow);
                 }
@@ -295,7 +343,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         .on_hover_text("Waiting for Spotify…");
                 }
                 // Where playback is.
-                if let Some(now) = app.now_playing()
+                if !compact
+                    && let Some(now) = app.now_playing()
                     && !now.local
                 {
                     let label = format!(
@@ -333,7 +382,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
                 // A newer release. Most people never visit a releases page,
                 // so the app says so, quietly, until they do.
-                if let Some(update) = app.update.clone() {
+                if !compact && let Some(update) = app.update.clone() {
                     let label = format!("Update to {}", update.version);
                     let galley =
                         ui.painter()

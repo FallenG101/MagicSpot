@@ -159,6 +159,10 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             app.actions.push(Action::CloseDialog);
         } else if app.show_devices {
             app.show_devices = false;
+        } else if app.show_lyrics_panel {
+            app.actions.push(Action::ToggleLyricsPanel);
+        } else if app.show_queue_panel {
+            app.actions.push(Action::ToggleQueuePanel);
         }
     }
 }
@@ -183,6 +187,7 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
     (platform_shortcut("Ctrl+F  or  /", "Cmd+F  or  /"), "Search"),
     (SIDEBAR_SHORTCUT, "Show or hide the sidebar"),
     ("Alt+←  /  Alt+→", "Back or forward"),
+    ("Esc", "Close the open popup or side panel"),
     (platform_shortcut("Ctrl+H", "Cmd+Shift+H"), "Home"),
     (platform_shortcut("Ctrl+L", "Cmd+L"), "Liked Songs"),
     (
