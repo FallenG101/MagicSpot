@@ -58,7 +58,8 @@ contribution.
   is no expand button or separate full-screen mode.
 - The lyrics panel uses one edge-to-edge blurred-art canvas inside its rounded
   frame. Its compact, unframed album header and scrolling text deliberately
-  share that surface; do not restore the separate opaque album card.
+  share that surface; do not restore the separate opaque album card or dark
+  scroll-edge masks.
 - Synced lines follow and center the active lyric. Manual scrolling disables
   following until **Follow** is selected or a line is clicked.
 - The list starts with a fixed 16-point inset. Do not restore a viewport-sized

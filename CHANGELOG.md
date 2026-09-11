@@ -13,7 +13,8 @@ after the newest tag remain development work until the next release.
 - Added bundled Inter, Manrope, and Lora lyric faces plus an optional subtle
   glow.
 - Unified the lyric header and scrolling text on one edge-to-edge blurred-art
-  canvas, reduced the album header height, and improved inactive-line contrast.
+  canvas, reduced the album header height, improved inactive-line contrast,
+  and removed the dark rectangular scroll-edge masks.
 - Removed the extra square top stroke that interfered with the rounded
   now-playing bar corners.
 

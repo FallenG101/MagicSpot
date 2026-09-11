@@ -92,37 +92,6 @@ fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expand
     }
 }
 
-fn paint_edge_fades(ui: &egui::Ui, rect: egui::Rect, color: egui::Color32) {
-    let height = 32.0_f32.min(rect.height() * 0.12);
-    for (top, bottom, top_color, bottom_color) in [
-        (
-            rect.top(),
-            rect.top() + height,
-            color,
-            egui::Color32::TRANSPARENT,
-        ),
-        (
-            rect.bottom() - height,
-            rect.bottom(),
-            egui::Color32::TRANSPARENT,
-            color,
-        ),
-    ] {
-        let fade = egui::Rect::from_min_max(
-            egui::pos2(rect.left(), top),
-            egui::pos2(rect.right(), bottom),
-        );
-        let mut mesh = egui::Mesh::default();
-        mesh.colored_vertex(fade.left_top(), top_color);
-        mesh.colored_vertex(fade.right_top(), top_color);
-        mesh.colored_vertex(fade.right_bottom(), bottom_color);
-        mesh.colored_vertex(fade.left_bottom(), bottom_color);
-        mesh.add_triangle(0, 1, 2);
-        mesh.add_triangle(0, 2, 3);
-        ui.painter().add(egui::Shape::mesh(mesh));
-    }
-}
-
 fn lyrics_font(choice: LyricsFont, size: f32) -> egui::FontId {
     match choice {
         LyricsFont::Inter => theme::bold(size),
@@ -509,12 +478,6 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
     {
         app.lyrics_following = false;
     }
-    let fade = if palette.dark {
-        egui::Color32::from_black_alpha(105)
-    } else {
-        egui::Color32::from_white_alpha(115)
-    };
-    paint_edge_fades(ui, scroll.inner_rect, fade);
     app.lyrics_line_shown = Some(active);
 }
 
