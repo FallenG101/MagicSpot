@@ -16,7 +16,8 @@ after the newest tag remain development work until the next release.
   canvas, reduced the album header height, improved inactive-line contrast,
   and removed the dark rectangular scroll-edge masks.
 - Removed the extra square top stroke that interfered with the rounded
-  now-playing bar corners.
+  now-playing bar corners and made its surrounding strip match the selected
+  window theme.
 
 ## v0.8.0 — 2026-09-10
 

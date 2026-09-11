@@ -1,6 +1,6 @@
 //! The now-playing bar along the bottom of the window.
 
-use egui::{Align, Frame, Layout, Margin, Rect, Sense, UiBuilder, Vec2, pos2, vec2};
+use egui::{Align, Frame, Layout, Rect, Sense, UiBuilder, Vec2, pos2, vec2};
 
 use crate::app::{App, NowPlaying};
 use crate::model::{Action, DragTrack, Page};
@@ -16,29 +16,35 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         .exact_size(theme::PLAYER_BAR_HEIGHT + 12.0)
         .resizable(false)
         .show_separator_line(false)
-        .frame(
-            Frame::new()
-                .fill(palette.panel)
-                .stroke(egui::Stroke::new(1.0, palette.outline))
-                .corner_radius(14.0)
-                .outer_margin(Margin {
-                    left: 10,
-                    right: 10,
-                    top: 4,
-                    bottom: 8,
-                })
-                .inner_margin(Margin::symmetric(16, 0)),
-        )
+        // The panel owns the whole bottom strip, including the spacing around
+        // the rounded bar. Painting it with the window colour prevents egui's
+        // root fill from showing through as a mismatched band.
+        .frame(Frame::new().fill(palette.window))
         .show(ui, |ui| {
-            let rect = ui.max_rect();
+            let outer = ui.max_rect();
+            let rect = Rect::from_min_max(
+                pos2(outer.left() + 10.0, outer.top() + 4.0),
+                pos2(outer.right() - 10.0, outer.bottom() - 8.0),
+            );
+            ui.painter().rect_filled(rect, 14.0, palette.panel);
+            ui.painter().rect_stroke(
+                rect,
+                14.0,
+                egui::Stroke::new(1.0, palette.outline),
+                egui::StrokeKind::Inside,
+            );
+            let content = rect.shrink2(vec2(16.0, 0.0));
+            let mut bar_ui = ui.new_child(UiBuilder::new().max_rect(content));
+            let ui = &mut bar_ui;
             let now = app.now_playing();
-            let width = rect.width();
+            let width = content.width();
             let side = (width * 0.3).clamp(200.0, 420.0);
-            let cy = rect.center().y;
-            let left = Rect::from_min_max(rect.min, pos2(rect.left() + side, rect.bottom()));
+            let cy = content.center().y;
+            let left =
+                Rect::from_min_max(content.min, pos2(content.left() + side, content.bottom()));
             let center = Rect::from_min_max(
-                pos2(rect.left() + side, rect.top()),
-                pos2(rect.right() - side, rect.bottom()),
+                pos2(content.left() + side, content.top()),
+                pos2(content.right() - side, content.bottom()),
             );
 
             // egui's cross-axis centring is unreliable across nested layouts of
@@ -49,7 +55,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             transport(app, ui, now.as_ref(), center);
 
             let right_band =
-                Rect::from_min_size(pos2(rect.right() - side, cy - 15.0), vec2(side, 30.0));
+                Rect::from_min_size(pos2(content.right() - side, cy - 15.0), vec2(side, 30.0));
             let mut right_ui = ui.new_child(
                 UiBuilder::new()
                     .max_rect(right_band)

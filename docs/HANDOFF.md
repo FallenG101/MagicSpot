@@ -77,7 +77,8 @@ contribution.
 - Blurred lyric backdrops use a 128-pixel derived PNG made off the UI thread and
   cached through `ArtLoader`; do not blur full-size artwork every frame.
 - The bottom player bar uses the selected theme surface rather than its own
-  album tint.
+  album tint. Its outer spacing is painted with `palette.window`, so the root
+  egui fill cannot show through as a differently coloured strip.
 - Queue sections distinguish the playing row, manually queued rows, and the
   current context. Manual rows can be moved or removed only when the local
   MagicSpot player is active; this is implemented by clearing and rebuilding
