@@ -20,68 +20,21 @@ fn blend(from: egui::Color32, to: egui::Color32, t: f32) -> egui::Color32 {
 
 fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expanded: bool) {
     let palette = app.palette;
-    let tint = app.now_playing_tint().unwrap_or(palette.surface);
     let width = ui.available_width();
     let height = if expanded {
-        (ui.available_height() * 0.46).clamp(300.0, 470.0)
+        (ui.available_height() * 0.30).clamp(220.0, 300.0)
     } else {
-        (ui.available_height() * 0.50).clamp(260.0, 360.0)
+        (ui.available_height() * 0.25).clamp(176.0, 230.0)
     };
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), Sense::hover());
-    widgets::paint_shadow(ui, &palette, rect.shrink(4.0), 24.0);
-    let strength = f32::from(app.settings.lyrics_tint_strength.min(100)) / 100.0;
-    let glass = blend(palette.panel, tint, strength);
-    ui.painter().rect_filled(rect, 24.0, glass);
-    if app.settings.accent_from_art {
-        let opacity = (55.0 + strength * 150.0).round() as u8;
-        widgets::paint_blurred_art(
-            ui,
-            now.art_url.as_deref().or(now.art_small.as_deref()),
-            rect,
-            24.0,
-            opacity,
-            app.backend.art(),
-        );
-        ui.painter().rect_filled(
-            rect,
-            24.0,
-            egui::Color32::from_rgba_unmultiplied(
-                palette.panel.r(),
-                palette.panel.g(),
-                palette.panel.b(),
-                (155.0 - strength * 65.0).round() as u8,
-            ),
-        );
-    }
-    ui.painter().rect_stroke(
-        rect,
-        24.0,
-        egui::Stroke::new(
-            1.0,
-            if palette.dark {
-                egui::Color32::from_white_alpha(42)
-            } else {
-                egui::Color32::from_black_alpha(24)
-            },
-        ),
-        egui::StrokeKind::Inside,
-    );
-    ui.painter().line_segment(
-        [
-            egui::pos2(rect.left() + 26.0, rect.top() + 1.0),
-            egui::pos2(rect.right() - 26.0, rect.top() + 1.0),
-        ],
-        egui::Stroke::new(1.0, egui::Color32::from_white_alpha(52)),
-    );
-
     let content = rect.shrink2(if expanded {
-        egui::vec2(30.0, 26.0)
+        egui::vec2(18.0, 12.0)
     } else {
-        egui::vec2(22.0, 20.0)
+        egui::vec2(10.0, 10.0)
     });
-    let cover_size = (content.height() - 8.0)
+    let cover_size = (content.height() - 4.0)
         .min(content.width() * if expanded { 0.36 } else { 0.48 })
-        .min(300.0);
+        .min(if expanded { 220.0 } else { 170.0 });
     let cover_rect = egui::Rect::from_center_size(
         egui::pos2(content.left() + cover_size / 2.0, content.center().y),
         egui::Vec2::splat(cover_size),
@@ -106,9 +59,9 @@ fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expand
             .max_rect(text_rect)
             .layout(Layout::top_down(Align::Min)),
     );
-    text_ui.add_space((text_rect.height() * if expanded { 0.27 } else { 0.18 }).max(14.0));
+    text_ui.add_space((text_rect.height() * if expanded { 0.24 } else { 0.18 }).max(10.0));
     let title_size = if expanded {
-        (cover_size * 0.14).clamp(28.0, 42.0)
+        (cover_size * 0.14).clamp(26.0, 34.0)
     } else {
         (cover_size * 0.13).clamp(21.0, 28.0)
     };
@@ -265,7 +218,9 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
         tint,
         strength * if palette.dark { 0.32 } else { 0.20 },
     );
-    let panel = egui::Panel::right("lyrics-panel")
+    // New id resets egui's persisted splitter position for the redesigned
+    // panel; the user's saved lyrics width remains the default.
+    let panel = egui::Panel::right("lyrics-panel-v2")
         .resizable(true)
         .default_size(app.settings.lyrics_width)
         .size_range(theme::SIDE_PANEL_MIN_WIDTH..=920.0)
@@ -284,29 +239,31 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                 .inner_margin(Margin::symmetric(20, 16)),
         );
     let response = panel.show(ui, |ui| {
+        // The frame gives content its reading inset. Expand the artwork back
+        // through that inset so the image still reaches every rounded edge.
+        let backdrop = ui.max_rect().expand2(egui::vec2(20.0, 16.0));
         if app.settings.accent_from_art
             && app.settings.lyrics_tint_strength > 0
             && let Some(now) = app.now_playing()
         {
-            let backdrop = ui.max_rect();
-            let opacity =
-                (70.0 + f32::from(app.settings.lyrics_tint_strength.min(100)) * 1.65).round() as u8;
+            let opacity = (110.0 + f32::from(app.settings.lyrics_tint_strength.min(100)) * 1.30)
+                .round() as u8;
             widgets::paint_blurred_art(
                 ui,
                 now.art_url.as_deref().or(now.art_small.as_deref()),
                 backdrop,
-                12.0,
+                14.0,
                 opacity,
                 app.backend.art(),
             );
             ui.painter().rect_filled(
                 backdrop,
-                12.0,
+                14.0,
                 egui::Color32::from_rgba_unmultiplied(
                     palette.panel.r(),
                     palette.panel.g(),
                     palette.panel.b(),
-                    118,
+                    (160.0 - strength * 70.0).round() as u8,
                 ),
             );
         }
@@ -337,13 +294,13 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                 }
             });
         });
-        ui.add_space(12.0);
+        ui.add_space(6.0);
         if let Some(now) = app.now_playing() {
             let spacious = ui.available_width() >= 560.0;
             track_hero(app, ui, &now, spacious);
-            ui.add_space(if spacious { 16.0 } else { 12.0 });
+            ui.add_space(4.0);
         }
-        contents(app, ui, panel_fill);
+        contents(app, ui);
     });
     let current_width = response.response.rect.width();
     if (app.settings.lyrics_width - current_width).abs() > 1.0 {
@@ -353,7 +310,7 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
-fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
+fn contents(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let Some(now) = app.now_playing() else {
         widgets::empty_state(
@@ -443,8 +400,8 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
             let quiet = if lyrics.synced && active.is_some() {
                 blend(
                     palette.secondary,
-                    palette.panel,
-                    (distance as f32 * 0.08).min(0.3),
+                    palette.dim,
+                    (distance as f32 * 0.055).min(0.20),
                 )
             } else {
                 palette.secondary
@@ -552,7 +509,12 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
     {
         app.lyrics_following = false;
     }
-    paint_edge_fades(ui, scroll.inner_rect, panel_fill);
+    let fade = if palette.dark {
+        egui::Color32::from_black_alpha(105)
+    } else {
+        egui::Color32::from_white_alpha(115)
+    };
+    paint_edge_fades(ui, scroll.inner_rect, fade);
     app.lyrics_line_shown = Some(active);
 }
 
