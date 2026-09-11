@@ -5,6 +5,8 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+## v0.8.0 — 2026-09-10
+
 - Split the queue into clearer Now Playing, manually queued, and current-context
   sections with counts, refresh/save controls, and a stronger playing card.
 - Added remove and move-earlier/later controls for manual queue rows while

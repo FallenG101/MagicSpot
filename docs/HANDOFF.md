@@ -9,8 +9,9 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v0.7.4**. It contains the lyrics spacing fix and
-  Windows and universal macOS downloads.
+- The latest user release is **v0.8.0**. It contains the collection, lyrics,
+  queue, and responsive navigation improvements documented in the changelog,
+  with Windows and universal macOS downloads.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
