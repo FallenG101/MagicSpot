@@ -174,8 +174,13 @@ page for a newer version.
 
 ## Release runbook
 
-Avoid releases for isolated cosmetic fixes. Accumulate and test a useful group
-of changes, then:
+Classify versions by user-visible scope. Bug fixes and visual corrections bump
+the patch number (`x.y.Z`), a feature bumps the minor number (`x.Y.0`), and a
+release with multiple features or a broad overhaul bumps the major number
+(`X.0.0`). A mixed release takes its highest applicable bump. Do not change the
+version or create a release unless the user requests one.
+
+When publishing a requested release:
 
 1. Update the package version in both `Cargo.toml` and MagicSpot's package entry
    in `Cargo.lock`.

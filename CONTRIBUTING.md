@@ -18,3 +18,14 @@ DRM bypasses, telemetry, or an embedded browser engine.
 
 Playback depends on Spotify Premium and librespot. Lossless playback remains
 out of scope until it is lawfully supported by the upstream playback stack.
+
+## Versioning
+
+MagicSpot versions describe the user-visible scope of a release:
+
+- Bug fixes and visual corrections increment the patch number (`x.y.Z`).
+- A feature release increments the minor number (`x.Y.0`).
+- A release containing multiple features or a broad overhaul increments the
+  major number (`X.0.0`).
+
+When a release mixes categories, use the highest applicable increment.

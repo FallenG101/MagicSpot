@@ -12,10 +12,13 @@ small native egui/librespot architecture.
 - Add focused tests for state and migration changes. Use the `demo` feature
   for deterministic UI work.
 - Run formatting, tests, and strict Clippy before committing.
+- Version releases by user-visible scope: fixes and visual corrections bump
+  the patch number, a feature bumps the minor number, and a multi-feature or
+  overhaul release bumps the major number. A mixed release takes its highest
+  applicable bump.
 - Read `docs/HANDOFF.md` before changing behavior or publishing a release.
-- Hosted GitHub workflows are manual because this private repository has a
-  limited Actions allowance. Do not start them for routine iteration. Work
-  locally and batch changes into milestone releases.
+- Hosted GitHub workflows are manual. Do not start them for routine iteration;
+  work locally and run packaging workflows for requested releases.
 
 Work on `main`. Keep the upstream Fastpotify remote so useful fixes can be
 reviewed and integrated without losing project ancestry.
