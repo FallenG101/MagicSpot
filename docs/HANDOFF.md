@@ -9,9 +9,9 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v0.8.0**. It contains the collection, lyrics,
-  queue, and responsive navigation improvements documented in the changelog,
-  with Windows and universal macOS downloads.
+- The latest user release is **v0.9.0**. It adds lyric typography and alignment
+  controls, colour swatches, edge-to-edge blurred artwork, and final player-bar
+  surface polish to the v0.8.0 collection, queue, and navigation work.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -223,12 +223,9 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- The local v0.8.0 workstream now contains the playlist/album page overhaul and
-  lyric presentation controls. Finish user review before versioning or making
-  a hosted release; no GitHub workflow has been triggered for this work.
+- v0.9.0 packages the completed lyric customization and presentation pass.
 - Add a custom theme editor after the current collection and lyric work settles.
-- Improve first-connection feedback. The main queue interaction pass is now in
-  the local v0.8.0 workstream.
+- Improve first-connection feedback.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
 - Add Developer ID signing, notarization, and possibly a Homebrew Cask as the

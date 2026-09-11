@@ -5,6 +5,8 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+## v0.9.0 — 2026-09-11
+
 - Fixed left lyric alignment by routing every line through one explicit
   full-width layout path.
 - Replaced named colour-theme chips with compact circular colour swatches.
