@@ -5,7 +5,7 @@ use egui::{Align, CornerRadius, Frame, Layout, Margin, Stroke, Vec2};
 use crate::api::models::pick_image;
 use crate::app::App;
 use crate::model::{Action, Dialog};
-use crate::settings::{ColorTheme, ThemeChoice};
+use crate::settings::{ColorTheme, LyricsAlignment, ThemeChoice};
 use crate::theme::{self, Icon, Palette};
 
 use super::widgets;
@@ -506,7 +506,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui,
             &palette,
             "Colour from album art",
-            "Use the current cover's colour on pages and the player bar.",
+            "Use the current cover's colour on pages and tintable panels.",
             |ui| {
                 if widgets::switch(
                     ui,
@@ -523,19 +523,56 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         widgets::setting_row(
             ui,
             &palette,
-            "Lyrics text size",
-            "Applies at every lyrics panel width.",
+            "Lyrics appearance",
+            "Text size, spacing, alignment, and album-art tint.",
             |ui| {
-                if ui
-                    .add(
-                        egui::Slider::new(&mut app.settings.lyrics_font_size, 20..=44)
-                            .suffix(" pt"),
-                    )
-                    .changed()
-                {
-                    app.lyrics_line_shown = None;
-                    changed = true;
-                }
+                ui.menu_button("Customize", |ui| {
+                    ui.set_min_width(280.0);
+                    theme::text(ui, "Text size", theme::medium(12.5), palette.text);
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut app.settings.lyrics_font_size, 20..=44)
+                                .suffix(" pt"),
+                        )
+                        .changed();
+                    ui.add_space(6.0);
+                    theme::text(ui, "Line spacing", theme::medium(12.5), palette.text);
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut app.settings.lyrics_line_spacing, 35..=110)
+                                .suffix("%"),
+                        )
+                        .changed();
+                    ui.add_space(6.0);
+                    theme::text(ui, "Alignment", theme::medium(12.5), palette.text);
+                    ui.horizontal(|ui| {
+                        for alignment in LyricsAlignment::ALL {
+                            if theme::soft_button(
+                                ui,
+                                &palette,
+                                None,
+                                alignment.label(),
+                                app.settings.lyrics_alignment == alignment,
+                            )
+                            .clicked()
+                            {
+                                app.settings.lyrics_alignment = alignment;
+                                changed = true;
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
+                    theme::text(ui, "Background tint", theme::medium(12.5), palette.text);
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut app.settings.lyrics_tint_strength, 0..=100)
+                                .suffix("%"),
+                        )
+                        .changed();
+                    if changed {
+                        app.lyrics_line_shown = None;
+                    }
+                });
             },
         );
         widgets::setting_row(

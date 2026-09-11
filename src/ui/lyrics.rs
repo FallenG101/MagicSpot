@@ -5,6 +5,7 @@ use egui::{Align, Frame, Layout, Margin, Sense};
 
 use crate::app::App;
 use crate::model::{Action, Loadable};
+use crate::settings::LyricsAlignment;
 use crate::theme::{self, Icon};
 
 use super::widgets;
@@ -28,15 +29,8 @@ fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expand
     };
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), Sense::hover());
     widgets::paint_shadow(ui, &palette, rect.shrink(4.0), 24.0);
-    let glass = blend(
-        palette.panel,
-        tint,
-        if palette.dark {
-            if expanded { 0.18 } else { 0.22 }
-        } else {
-            0.12
-        },
-    );
+    let strength = f32::from(app.settings.lyrics_tint_strength.min(100)) / 100.0;
+    let glass = blend(palette.panel, tint, strength);
     ui.painter().rect_filled(rect, 24.0, glass);
     ui.painter().rect_stroke(
         rect,
@@ -51,7 +45,8 @@ fn track_hero(app: &App, ui: &mut egui::Ui, now: &crate::app::NowPlaying, expand
         ),
         egui::StrokeKind::Inside,
     );
-    let glow = egui::Color32::from_rgba_unmultiplied(tint.r(), tint.g(), tint.b(), 42);
+    let glow_alpha = (strength * 190.0).round() as u8;
+    let glow = egui::Color32::from_rgba_unmultiplied(tint.r(), tint.g(), tint.b(), glow_alpha);
     ui.painter().circle_filled(
         egui::pos2(rect.right() - 30.0, rect.top() + 20.0),
         height * 0.42,
@@ -192,7 +187,12 @@ fn word_progress_offset(text: &str, position_ms: u32, start_ms: u32, end_ms: u32
 pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let tint = app.now_playing_tint().unwrap_or(palette.panel);
-    let panel_fill = blend(palette.panel, tint, if palette.dark { 0.07 } else { 0.04 });
+    let strength = f32::from(app.settings.lyrics_tint_strength.min(100)) / 100.0;
+    let panel_fill = blend(
+        palette.panel,
+        tint,
+        strength * if palette.dark { 0.32 } else { 0.20 },
+    );
     let panel = egui::Panel::right("lyrics-panel")
         .resizable(true)
         .default_size(app.settings.lyrics_width)
@@ -288,7 +288,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                 &palette,
                 Icon::Mic,
                 "No lyrics",
-                "No lyrics found for this track.",
+                "Lyrics are not available for this track yet.",
             );
             return;
         }
@@ -298,7 +298,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                 &palette,
                 Icon::Music,
                 "Instrumental",
-                "No timed lyrics for this track.",
+                "Enjoy the music — this track has no vocals to follow.",
             );
             return;
         }
@@ -310,9 +310,12 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
     // Keep the font weight fixed so highlighting never changes line wrapping
     // or shifts the scroll target. Only colour animates, for 220 ms.
     let line_size = f32::from(app.settings.lyrics_font_size.clamp(20, 44));
+    let line_gap = line_size * (f32::from(app.settings.lyrics_line_spacing.clamp(35, 110)) / 100.0);
+    let alignment = app.settings.lyrics_alignment;
     let focus_padding = (ui.available_height() * 0.5 - line_size).max(12.0);
     let mut scroll_area = egui::ScrollArea::vertical()
-        .id_salt("lyrics-scroll")
+        .id_salt(("lyrics-scroll", &now.uri))
+        .animated(true)
         .auto_shrink([false, false]);
     if lyrics.synced && active.is_none() {
         scroll_area = scroll_area.vertical_scroll_offset(0.0);
@@ -383,6 +386,10 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                 let offset = word_progress_offset(text, now.position_ms, start, end);
                 let mut job = LayoutJob::default();
                 job.wrap.max_width = ui.available_width();
+                job.halign = match alignment {
+                    LyricsAlignment::Left => Align::LEFT,
+                    LyricsAlignment::Center => Align::Center,
+                };
                 job.append(
                     &text[..offset],
                     0.0,
@@ -401,10 +408,18 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
                         ..Default::default()
                     },
                 );
-                ui.add(egui::Label::new(job).sense(sense))
+                ui.add_sized(
+                    [ui.available_width(), 0.0],
+                    egui::Label::new(job).sense(sense),
+                )
             } else {
-                ui.add(
+                ui.add_sized(
+                    [ui.available_width(), 0.0],
                     egui::Label::new(egui::RichText::new(text).font(font).color(color))
+                        .halign(match alignment {
+                            LyricsAlignment::Left => Align::LEFT,
+                            LyricsAlignment::Center => Align::Center,
+                        })
                         .sense(sense),
                 )
             };
@@ -421,7 +436,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, panel_fill: egui::Color32) {
             if is_active && follow {
                 ui.scroll_to_rect(rect, Some(Align::Center));
             }
-            ui.add_space(line_size * 0.65);
+            ui.add_space(line_gap);
         }
         // Words without timing can only be followed by the clock: sit
         // at the part of the text the song is probably at.

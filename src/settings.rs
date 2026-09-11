@@ -14,6 +14,25 @@ pub enum ThemeChoice {
     Oled,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LyricsAlignment {
+    #[default]
+    Left,
+    Center,
+}
+
+impl LyricsAlignment {
+    pub const ALL: [Self; 2] = [Self::Left, Self::Center];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Left => "Left",
+            Self::Center => "Center",
+        }
+    }
+}
+
 /// Accent and surface character, independent of light/dark mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -119,6 +138,11 @@ pub struct Settings {
     pub lyrics_width: f32,
     /// Lyrics text size in logical points, independent of interface zoom.
     pub lyrics_font_size: u8,
+    /// Space after each lyric line, as a percentage of the font size.
+    pub lyrics_line_spacing: u8,
+    pub lyrics_alignment: LyricsAlignment,
+    /// Strength of album-art colour in the lyrics surfaces, 0..=100.
+    pub lyrics_tint_strength: u8,
     /// Estimate word progress between line timestamps for a karaoke effect.
     pub lyrics_word_progress_beta: bool,
     pub queue_width: f32,
@@ -218,6 +242,9 @@ impl Default for Settings {
             sidebar_width: 250.0,
             lyrics_width: 360.0,
             lyrics_font_size: 26,
+            lyrics_line_spacing: 65,
+            lyrics_alignment: LyricsAlignment::Left,
+            lyrics_tint_strength: 22,
             lyrics_word_progress_beta: false,
             queue_width: 360.0,
             tracklist_compact: false,
@@ -320,13 +347,16 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColorTheme, Settings, ThemeChoice};
+    use super::{ColorTheme, LyricsAlignment, Settings, ThemeChoice};
 
     #[test]
     fn lyrics_size_is_backward_compatible_and_persists() {
         let older: super::Settings = serde_json::from_str(r#"{"lyrics_width":420.0}"#).unwrap();
         assert_eq!(older.lyrics_font_size, 26);
         assert_eq!(older.lyrics_width, 420.0);
+        assert_eq!(older.lyrics_line_spacing, 65);
+        assert_eq!(older.lyrics_alignment, LyricsAlignment::Left);
+        assert_eq!(older.lyrics_tint_strength, 22);
         assert_eq!(older.color_theme, ColorTheme::Aqua);
         assert!(!older.lyrics_word_progress_beta);
         let settings = super::Settings {

@@ -800,6 +800,14 @@ fn track_row_contents(ui: &mut Ui, app: &mut App, row: TrackRow<'_>) -> Option<R
                 .accent
                 .gamma_multiply(if hovered { 0.30 } else { 0.20 }),
         );
+    } else if is_current {
+        ui.painter().rect_filled(
+            rect,
+            CornerRadius::same(6),
+            palette
+                .accent
+                .gamma_multiply(if hovered { 0.20 } else { 0.11 }),
+        );
     } else if hovered {
         ui.painter().rect_filled(
             rect,

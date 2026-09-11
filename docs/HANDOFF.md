@@ -50,6 +50,9 @@ fixes separable for possible upstream contribution.
 
 - The desktop shell uses a full-height library rail, top navigation, rounded
   inset content, and a contained bottom player bar.
+- Playlist and album pages use a rounded collection stage with metadata on the
+  left and large artwork on the right. It stacks vertically below 700 points;
+  playlist filtering moves below the action row below 620 points.
 - Lyrics use a resizable right panel. Drag its left edge to change size; there
   is no expand button or separate full-screen mode.
 - The lyrics header contains a responsive album card and track metadata.
@@ -57,7 +60,10 @@ fixes separable for possible upstream contribution.
   following until **Follow** is selected or a line is clicked.
 - The list starts with a fixed 16-point inset. Do not restore a viewport-sized
   spacer above the first line; it creates the large blank area fixed in v0.7.4.
-- Lyric size is adjustable from 20 to 44 points in Appearance settings.
+- Lyric size, line spacing, left/center alignment, and album-art tint strength
+  live in the collapsed Lyrics appearance menu in Appearance settings.
+- Lyrics scroll state is keyed to the playing track. Preserve this when
+  changing the follow logic so one song cannot inherit another song's offset.
 - Estimated word-by-word progress is labelled **Beta** and defaults to off. It
   interpolates between line timestamps; it is not true per-word timing.
 - Appearance choices are Dark, Light, Follow system, and OLED. Accent choices
@@ -191,7 +197,12 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Continue layout and visual polish while preserving performance.
+- The local v0.8.0 workstream now contains the playlist/album page overhaul and
+  lyric presentation controls. Finish user review before versioning or making
+  a hosted release; no GitHub workflow has been triggered for this work.
+- Add a custom theme editor after the current collection and lyric work settles.
+- Improve first-connection feedback and queue interactions.
+- Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
 - Add signing, notarization, and possibly a Homebrew Cask before a public push.
 - Consider a true updater later; the current release checker is intentionally

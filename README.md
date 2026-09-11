@@ -22,10 +22,11 @@ Spotify.
 
 - A redesigned desktop shell with a full-height library rail, top navigation,
   inset content canvas, and contained player bar.
-- Responsive collection headers with prominent artwork.
+- Rounded, responsive playlist and album headers with prominent artwork and
+  cleaner narrow-window actions.
 - A resizable lyrics panel with a large album card and no separate expand mode.
-- Adjustable 20–44 pt lyric text and optional word-by-word highlighting marked
-  **Beta** and disabled by default.
+- Adjustable lyric size, spacing, alignment, and album-art tint, plus optional
+  word-by-word highlighting marked **Beta** and disabled by default.
 - Light, Dark, Follow System, and OLED appearances.
 - Aqua, Violet, Rose, Amber, and Neutral Gray accents. Neutral Gray and OLED
   support album-art tinting while keeping their darker base surfaces.

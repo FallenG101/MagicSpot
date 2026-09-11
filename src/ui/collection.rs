@@ -50,8 +50,13 @@ fn hero_details(app: &mut App, ui: &mut egui::Ui, hero: &Hero<'_>, cover_size: f
     let width = ui.available_width();
     ui.set_width(width);
     ui.spacing_mut().item_spacing.y = 6.0;
-    ui.add_space(cover_size * 0.08);
-    theme::text(ui, hero.kind, theme::medium(12.5), palette.text);
+    ui.add_space(cover_size * 0.10);
+    theme::text(
+        ui,
+        hero.kind.to_uppercase(),
+        theme::semibold(11.5),
+        palette.accent,
+    );
     let mut size = if cover_size > 200.0 { 48.0 } else { 40.0 };
     let display_title = crate::bidi::display_text(hero.title);
     loop {
@@ -96,24 +101,46 @@ fn hero_details(app: &mut App, ui: &mut egui::Ui, hero: &Hero<'_>, cover_size: f
 
 pub fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     ui.add_space(12.0);
-    let wide = ui.available_width() > 720.0;
-    let cover_size = if wide { 236.0 } else { 160.0 };
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 24.0;
-        if wide {
-            let details_width = (ui.available_width() - cover_size - 24.0).max(220.0);
-            ui.allocate_ui_with_layout(
-                vec2(details_width, cover_size),
-                Layout::top_down(Align::Min),
-                |ui| hero_details(app, ui, &hero, cover_size),
+    let palette = app.palette;
+    let available = ui.available_width();
+    let wide = available >= 700.0;
+    let cover_size = if wide {
+        (available * 0.24).clamp(210.0, 280.0)
+    } else {
+        available.min(190.0)
+    };
+    egui::Frame::new()
+        .fill(palette.surface)
+        .stroke(egui::Stroke::new(1.0, palette.outline))
+        .corner_radius(egui::CornerRadius::same(18))
+        .inner_margin(egui::Margin::same(if wide { 24 } else { 18 }))
+        .show(ui, |ui| {
+            let rect = ui.max_rect();
+            ui.painter().circle_filled(
+                pos2(rect.right() - 24.0, rect.top() + 12.0),
+                cover_size * 0.85,
+                palette
+                    .accent
+                    .gamma_multiply(if palette.dark { 0.09 } else { 0.05 }),
             );
-            hero_cover(app, ui, &hero, cover_size);
-        } else {
-            hero_cover(app, ui, &hero, cover_size);
-            ui.vertical(|ui| hero_details(app, ui, &hero, cover_size));
-        }
-    });
-    ui.add_space(20.0);
+            if wide {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 30.0;
+                    let details_width = (ui.available_width() - cover_size - 30.0).max(240.0);
+                    ui.allocate_ui_with_layout(
+                        vec2(details_width, cover_size),
+                        Layout::top_down(Align::Min),
+                        |ui| hero_details(app, ui, &hero, cover_size),
+                    );
+                    hero_cover(app, ui, &hero, cover_size);
+                });
+            } else {
+                ui.vertical_centered(|ui| hero_cover(app, ui, &hero, cover_size));
+                ui.add_space(12.0);
+                hero_details(app, ui, &hero, 150.0);
+            }
+        });
+    ui.add_space(18.0);
 }
 
 pub struct Actions<'a> {
@@ -137,6 +164,8 @@ pub fn actions_row(
     filter: Option<&mut String>,
 ) {
     let palette = app.palette;
+    let filter_below = filter.is_some() && ui.available_width() < 620.0;
+    let mut filter = filter;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 18.0;
         if let Some(uri) = &actions.play_uri {
@@ -247,7 +276,7 @@ pub fn actions_row(
                     )
                 });
         }
-        if let Some(filter) = filter {
+        if !filter_below && let Some(filter) = filter.as_deref_mut() {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 widgets::search_field(
                     ui,
@@ -260,6 +289,17 @@ pub fn actions_row(
             });
         }
     });
+    if filter_below && let Some(filter) = filter {
+        widgets::search_field(
+            ui,
+            &palette,
+            egui::Id::new(("collection-filter", actions.name)),
+            filter,
+            "Filter",
+            ui.available_width().min(320.0),
+        );
+        ui.add_space(8.0);
+    }
     ui.add_space(14.0);
 }
 
