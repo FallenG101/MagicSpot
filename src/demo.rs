@@ -746,13 +746,13 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
             }
             "lyrics" => {
                 app.lyrics_uri = app.now_playing().map(|now| now.uri);
-                app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
+                app.lyrics = Loadable::Loaded(Some(std::sync::Arc::new(sample_lyrics())));
                 app.lyrics_following = true;
                 app.show_lyrics_panel = true;
             }
             "lyrics-expanded" => {
                 app.lyrics_uri = app.now_playing().map(|now| now.uri);
-                app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
+                app.lyrics = Loadable::Loaded(Some(std::sync::Arc::new(sample_lyrics())));
                 app.lyrics_following = true;
                 app.show_lyrics_panel = true;
                 app.settings.lyrics_width = 920.0;
@@ -1714,7 +1714,7 @@ mod tests {
         populate(&mut app);
         app.settings.queue_width = crate::theme::SIDE_PANEL_MIN_WIDTH;
         app.settings.lyrics_width = crate::theme::SIDE_PANEL_MIN_WIDTH;
-        app.lyrics = Loadable::Loaded(Some(sample_lyrics()));
+        app.lyrics = Loadable::Loaded(Some(std::sync::Arc::new(sample_lyrics())));
         app.lyrics_following = false;
 
         let input = egui::RawInput {

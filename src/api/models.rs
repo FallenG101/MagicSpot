@@ -203,7 +203,7 @@ impl Album {
     pub fn year(&self) -> Option<&str> {
         self.release_date
             .as_deref()
-            .map(|date| &date[..date.len().min(4)])
+            .map(|date| date.get(..4).unwrap_or(date))
     }
 
     pub fn kind_label(&self) -> &'static str {
@@ -752,6 +752,19 @@ pub struct ApiErrorDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn album_year_handles_short_and_non_ascii_dates() {
+        let dated = |date: &str| {
+            let json = format!(
+                r#"{{"id":"a","name":"A","uri":"spotify:album:a","release_date":"{date}"}}"#
+            );
+            serde_json::from_str::<Album>(&json).unwrap()
+        };
+        assert_eq!(dated("2024-03-15").year(), Some("2024"));
+        assert_eq!(dated("20").year(), Some("20"));
+        assert_eq!(dated("작년").year(), Some("작년"));
+    }
 
     #[test]
     fn playlist_items_accept_both_item_and_track_keys() {

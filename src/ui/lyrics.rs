@@ -156,26 +156,37 @@ fn word_progress_offset(text: &str, position_ms: u32, start_ms: u32, end_ms: u32
     if position_ms < start_ms {
         return 0;
     }
-    let words: Vec<(usize, usize)> = text
-        .match_indices(|character: char| !character.is_whitespace())
-        .fold(Vec::new(), |mut words, (at, character)| {
-            let end = at + character.len();
-            if let Some((_, held_end)) = words.last_mut()
-                && *held_end == at
-            {
-                *held_end = end;
-            } else {
-                words.push((at, end));
-            }
-            words
-        });
-    if words.is_empty() || end_ms <= start_ms {
+    let word_count = text.split_whitespace().count();
+    if word_count == 0 || end_ms <= start_ms {
         return text.len();
     }
     let elapsed = position_ms.saturating_sub(start_ms).min(end_ms - start_ms);
-    let shown = ((u64::from(elapsed) * words.len() as u64) / u64::from(end_ms - start_ms))
-        .min(words.len() as u64) as usize;
-    if shown == 0 { 0 } else { words[shown - 1].1 }
+    let shown = ((u64::from(elapsed) * word_count as u64) / u64::from(end_ms - start_ms))
+        .min(word_count as u64) as usize;
+    if shown == 0 {
+        return 0;
+    }
+
+    // Find the end of the last revealed word without building a temporary
+    // word table on every playback repaint.
+    let mut completed = 0;
+    let mut in_word = false;
+    let mut revealed_end = 0;
+    for (at, character) in text.char_indices() {
+        if character.is_whitespace() {
+            if in_word {
+                completed += 1;
+                in_word = false;
+                if completed == shown {
+                    return revealed_end;
+                }
+            }
+        } else {
+            in_word = true;
+            revealed_end = at + character.len_utf8();
+        }
+    }
+    revealed_end
 }
 
 pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {

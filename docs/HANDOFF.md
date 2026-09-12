@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-11. This is the starting point for a new maintainer, coding
+Updated 2026-09-12. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -14,6 +14,10 @@ agent, or chat that does not have the project's conversation history.
   surface polish to the v0.8.0 collection, queue, and navigation work.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
+- The current unreleased work is a v0.9.1 stabilization pass: malformed album
+  dates no longer panic; page, track, and tint caches are bounded; pending
+  playlist edits survive cache pressure; and lyric rendering avoids cloning
+  the document or allocating a word table on each playback repaint.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
   but all workflows remain intentionally manual so cross-platform checks and
   packaging happen at deliberate milestones. Continue development with local
@@ -76,6 +80,9 @@ contribution.
   color is optional; OLED and Neutral remain tintable.
 - Blurred lyric backdrops use a 128-pixel derived PNG made off the UI thread and
   cached through `ArtLoader`; do not blur full-size artwork every frame.
+- Loaded lyric documents are held behind `Arc` because the playback repaint
+  path reads them four times per second. Beta word progress must remain
+  allocation-free in that path.
 - The bottom player bar uses the selected theme surface rather than its own
   album tint. Its outer spacing is painted with `palette.window`, so the root
   egui fill cannot show through as a differently coloured strip.
@@ -99,6 +106,10 @@ The main UI files are `src/ui/mod.rs`, `src/ui/topbar.rs`,
   and supports deterministic demo screenshots behind the `demo` feature.
 - `src/app.rs` owns UI-visible state. Views emit `Action` values, and the app
   applies them centrally.
+- Detailed page caches use per-type LRU caps, and track metadata is capped at
+  800 entries. The open page, playing context, and playlists with pending or
+  unconfirmed edits are protected from eviction. Preserve those guarantees
+  when changing navigation or playlist writes.
 - `src/backend.rs` owns the Tokio runtime. Spotify API, authentication,
   playback, lyrics, and image work must stay off the egui thread.
 - `src/api/` handles Spotify Web API models, clients, and shared/personal app

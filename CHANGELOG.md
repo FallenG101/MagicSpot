@@ -5,6 +5,13 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+- Prevented malformed or non-ASCII album release dates from crashing year
+  rendering.
+- Bounded detailed page, track metadata, and artwork-tint caches during long
+  sessions while protecting playlist edits that are still being confirmed.
+- Shared the current lyric document across repaints and removed the temporary
+  word table previously allocated on every beta word-progress frame.
+
 ## v0.9.0 — 2026-09-11
 
 - Fixed left lyric alignment by routing every line through one explicit
