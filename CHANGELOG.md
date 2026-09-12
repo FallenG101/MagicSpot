@@ -5,6 +5,8 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+## v0.9.1 — 2026-09-12
+
 - Prevented malformed or non-ASCII album release dates from crashing year
   rendering.
 - Bounded detailed page, track metadata, and artwork-tint caches during long
