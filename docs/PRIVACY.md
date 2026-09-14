@@ -5,6 +5,9 @@ backend.
 
 - Spotify authentication occurs on Spotify's website. MagicSpot stores refresh
   tokens and the local-playback credential in the platform state directory.
+- An optional personal Spotify app stores its public Client ID in preferences
+  and its authorization token with the other credentials. MagicSpot never asks
+  for the app's Client Secret.
 - Spotify Web API requests load library and catalogue data and control playback.
 - Librespot connects to Spotify for local playback and Spotify Connect.
 - When Spotify has no lyrics, MagicSpot can request them from LRCLIB using the

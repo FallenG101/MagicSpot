@@ -100,7 +100,12 @@ MilkDrop requirements.
 3. Select MagicSpot as the active Spotify Connect device.
 
 You can optionally add your own Spotify Development Mode client ID under
-**Settings → Account**. The setup button opens Spotify's developer dashboard.
+**Settings → Account**. Register `http://127.0.0.1:8989/login` as its exact
+redirect URI, paste only the Client ID into MagicSpot, and select **Authorize**.
+Do not enter the Client Secret. Spotify currently requires the development-app
+owner to have Premium. The personal app gives your installation its own route
+to Spotify's Web API; local playback authorization remains separate. Create and
+manage the app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
 See [Using MagicSpot](docs/USAGE.md) for shortcuts, lyrics controls, themes,
 external commands, and stored data. [Privacy and network access](docs/PRIVACY.md)
@@ -121,6 +126,8 @@ does not currently replace or install the application automatically.
 - Synced lyrics with click-to-seek and automatic following.
 - System media controls, tray support, keyboard navigation, and screen-reader
   metadata.
+- A compact player-bar layout that keeps the essential transport controls
+  usable in narrow windows.
 - A Winamp-compatible mini player with `.wsz` skins and an equalizer.
 - Optional projectM/MilkDrop visualizations when built with default features.
 

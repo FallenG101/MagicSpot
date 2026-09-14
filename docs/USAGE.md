@@ -33,6 +33,10 @@ the window is wide. Narrow windows stack the artwork over the title and move a
 playlist's filter below its actions. The active track has an accent surface as
 well as an accent title, so it remains visible while scanning a long list.
 
+The library displays playlist folders read from Spotify and lets you collapse
+or expand them. Folder creation and folder reorganization are not exposed by
+Spotify's supported Web API, so MagicSpot does not provide those operations.
+
 ## Queue and navigation
 
 The queue separates **Now playing**, **Playing next**, and tracks coming from
@@ -46,6 +50,12 @@ Back and Forward support `Alt+Left` / `Alt+Right` and extra mouse buttons, and
 their tooltips name the destination. At narrow widths the search field becomes
 a search button and secondary utilities move into the account menu. `Escape`
 closes the open popup, lyrics panel, or queue panel.
+
+Below 720 points, the now-playing bar keeps the cover, clipped track details,
+Previous/Play/Next, and a bottom seek line. Shuffle, repeat, lyrics, queue,
+device, and volume buttons return when the window is wide enough. Keyboard
+shortcuts continue to cover shuffle, repeat, lyrics, queue, and volume while
+the bar is compact.
 
 ## Common shortcuts
 
@@ -92,9 +102,25 @@ it in the existing instance.
 MagicSpot signs into the Spotify Web API first, then authorizes its local
 librespot playback device separately. Spotify discovery, shared API quota, and
 the first device transfer can make the initial connection slower than later
-launches. A personal Spotify Development Mode client ID under **Settings →
-Account** gives Web API requests their own quota; it does not replace the local
-playback authorization.
+launches. A personal Spotify Development Mode Client ID under **Settings →
+Account** routes supported Web API calls through the user's developer account;
+it does not replace local playback authorization.
+
+To configure it, create a Development Mode app in the
+[Spotify Developer Dashboard](https://developer.spotify.com/dashboard), select
+Web API, and register this exact redirect URI:
+
+```text
+http://127.0.0.1:8989/login
+```
+
+Copy the app's **Client ID** into **Settings → Account → Personal Spotify app**
+and select **Authorize**. MagicSpot does not need the Client Secret. Spotify
+currently requires the development-app owner to have Premium and limits a
+development app to a small allowlist. Add any other account under the app's
+User Management page before authorizing it. Development-app quotas are counted
+per Spotify developer account, so multiple personal Client IDs owned by the
+same account share that account's allowance.
 
 Update checks are disabled by default. When enabled, MagicSpot checks GitHub at
 most once per day and offers the release page when a newer version exists. The

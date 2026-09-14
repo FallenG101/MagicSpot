@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-12. This is the starting point for a new maintainer, coding
+Updated 2026-09-13. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -9,9 +9,10 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v0.9.1**. It stabilizes long sessions with
-  bounded page, track, and tint caches, removes hot-path lyric allocations,
-  protects pending playlist edits, and fixes malformed album-date handling.
+- The latest user release is **v0.9.2**. It adds the compact player-bar layout
+  below 720 points and refreshes the user, build, authentication, privacy, and
+  maintainer documentation.
+- There is no unreleased work after v0.9.2 at this handoff.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -46,6 +47,14 @@ editor, although no editor-specific project files are required.
 The repository is public, while the product remains an early personal,
 feature-rich fork. Keep broadly useful fixes separable for possible upstream
 contribution.
+
+Prefer features backed by Spotify account data and supported Spotify APIs so
+the experience remains consistent with Spotify on mobile and other devices.
+Generally avoid MagicSpot-only library structures, playback history, folders,
+or other local state that appears to be part of the user's Spotify account but
+cannot follow them between clients. Local state is appropriate for desktop UI
+preferences, caches, session restoration, and features that are clearly
+presented as specific to this installation.
 
 ## Current interface decisions
 
@@ -82,10 +91,16 @@ contribution.
 - The bottom player bar uses the selected theme surface rather than its own
   album tint. Its outer spacing is painted with `palette.window`, so the root
   egui fill cannot show through as a differently coloured strip.
+- Below 720 points the player bar switches to a compact layout with cover and
+  clipped metadata, Previous/Play/Next, and a full-width bottom seek line.
+  Keep the optional controls out of this layout so regions cannot overlap.
 - Queue sections distinguish the playing row, manually queued rows, and the
   current context. Manual rows can be moved or removed only when the local
   MagicSpot player is active; this is implemented by clearing and rebuilding
   librespot's manual queue while preserving context rows.
+- Spotify playlist folders are read and rendered as a collapsible tree.
+  MagicSpot intentionally does not create or reorganize folders because those
+  operations are absent from Spotify's supported Web API.
 - The top bar switches to compact navigation below 780 points and an icon-only
   search below 560 points. Account-menu entries keep hidden utilities reachable.
 - Back/Forward hints name their destination. Alt+arrow and extra mouse-button
@@ -173,8 +188,12 @@ a screenshot.
 Spotify Premium is required for local librespot playback. Initial setup has two
 parts: Web API sign-in and separate local playback authorization. Shared API
 quota, Spotify device discovery, and the first transfer can make the first
-connection slower. A personal Development Mode client ID in Settings gives Web
-API requests a separate quota but does not replace playback authorization.
+connection slower. A personal Development Mode Client ID in Settings routes
+supported Web API calls through the user's developer account but does not
+replace playback authorization. Its registered redirect must be exactly
+`http://127.0.0.1:8989/login`; MagicSpot never needs the Client Secret. Spotify
+currently requires the development-app owner to have Premium, restricts its
+authorized users, and counts development quota per developer account.
 
 MagicSpot has a release checker, not an installer updater. Checks default to
 off; when enabled they query GitHub at most once per day and open the release
@@ -230,11 +249,13 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- v0.9.1 packages the first focused bug and performance stabilization pass.
+- v0.9.2 packages the narrow-window player-bar fix and documentation refresh.
 - Add a custom theme editor after the current collection and lyric work settles.
 - Improve first-connection feedback.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
+- Favor account-synced Spotify features over local-only library organization or
+  listening-history features.
 - Add Developer ID signing, notarization, and possibly a Homebrew Cask as the
   downloads mature for broader distribution.
 - Consider a true updater later; the current release checker is intentionally

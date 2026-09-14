@@ -5,6 +5,16 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+## v0.9.2 — 2026-09-13
+
+- Added a compact now-playing layout below 720 points so track information,
+  Previous/Play/Next, and the seek control no longer overlap in small windows.
+- Made fixed-size demo screenshots ignore restored interactive-window geometry.
+- Refreshed the user, build, authentication, and maintainer documentation for
+  the current application and release process.
+- Documented the preference for Spotify-backed, account-synced features over
+  local-only library organization and listening history.
+
 ## v0.9.1 — 2026-09-12
 
 - Prevented malformed or non-ASCII album release dates from crashing year

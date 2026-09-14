@@ -16,6 +16,12 @@ Keep changes focused and explain their user-visible effect. Do not include
 credentials, generated build output, Spotify audio from alternate sources,
 DRM bypasses, telemetry, or an embedded browser engine.
 
+Prefer features that use Spotify account data and remain consistent with the
+user's mobile and other Spotify clients. Avoid local-only folders, listening
+history, or library structures that could be mistaken for synced Spotify data.
+Installation-specific preferences, caches, and session restoration remain
+appropriate when the interface makes their local scope clear.
+
 Playback depends on Spotify Premium and librespot. Lossless playback remains
 out of scope until it is lawfully supported by the upstream playback stack.
 

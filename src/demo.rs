@@ -891,12 +891,18 @@ mod tests {
         app: &mut App,
         events: Vec<egui::Event>,
     ) -> egui::accesskit::TreeUpdate {
+        accessible_frame_at(ctx, app, egui::vec2(1280.0, 800.0), events)
+    }
+
+    fn accessible_frame_at(
+        ctx: &egui::Context,
+        app: &mut App,
+        size: egui::Vec2,
+        events: Vec<egui::Event>,
+    ) -> egui::accesskit::TreeUpdate {
         let mut output = ctx.run_ui(
             egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1280.0, 800.0),
-                )),
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
                 events,
                 ..Default::default()
             },
@@ -975,6 +981,59 @@ mod tests {
             "focused Space must pause once, without firing the global shortcut too"
         );
         assert_eq!(tree.focus, pause);
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn compact_player_bar_keeps_essential_controls_separate() {
+        use egui::accesskit::Role;
+
+        let (ctx, mut app) = accessible_app("compact-player");
+        let size = egui::vec2(760.0, 520.0);
+        accessible_frame_at(&ctx, &mut app, size, vec![]);
+        let tree = accessible_frame_at(&ctx, &mut app, size, vec![]);
+
+        let bounds = |label, role| {
+            tree.nodes
+                .iter()
+                .find(|(_, node)| node.label() == Some(label) && node.role() == role)
+                .and_then(|(_, node)| node.bounds())
+                .unwrap_or_else(|| panic!("missing visible {label:?} {role:?}"))
+        };
+        let previous = bounds("Previous", Role::Button);
+        let pause = bounds("Pause", Role::Button);
+        let next = bounds("Next", Role::Button);
+        let seek = bounds("Playback position (%)", Role::Slider);
+
+        assert!(previous.x1 <= pause.x0 && pause.x1 <= next.x0);
+        assert!(previous.y1 <= seek.y0 && pause.y1 <= seek.y0 && next.y1 <= seek.y0);
+        assert!(seek.x0 < previous.x0 && seek.x1 > next.x1);
+        assert!(
+            seek.width() > f64::from(size.x) * 0.55,
+            "compact seek is only {} points",
+            seek.width()
+        );
+
+        for label in [
+            "Shuffle",
+            "Repeat",
+            "Repeat one",
+            "Repeat off",
+            "Connect to a device",
+            "Queue",
+            "Lyrics",
+            "Volume (%)",
+            "Save to Liked Songs",
+            "Remove from Liked Songs",
+        ] {
+            assert!(
+                !tree
+                    .nodes
+                    .iter()
+                    .any(|(_, node)| node.label() == Some(label)),
+                "optional control {label:?} overlaps the compact player"
+            );
+        }
         app.backend.shutdown();
     }
 

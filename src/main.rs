@@ -387,6 +387,10 @@ fn main() -> eframe::Result<()> {
         magicspot::demo::apply_flags(&mut app, cli.demo_page.as_deref(), cli.demo_show.as_deref());
     }
     #[cfg(feature = "demo")]
+    if cli.demo_size.is_some() {
+        app.discard_restored_window_geometry();
+    }
+    #[cfg(feature = "demo")]
     let shot = cli.demo_shot.clone().map(|path| Shot {
         path,
         due: std::time::Instant::now() + std::time::Duration::from_millis(cli.demo_shot_delay),
@@ -589,11 +593,22 @@ fn native_options(
 ) -> eframe::NativeOptions {
     // The app keeps the mini player's position and shaded size separately.
     // Its closing window must not replace the main window's eframe geometry.
-    let persist_window = mini.is_none();
+    // A fixed demo capture also gets an isolated persistence path: disabling
+    // saving alone does not stop eframe from restoring the ordinary window.
+    let fixed_demo = inner_size.is_some();
+    let persist_window = mini.is_none() && !fixed_demo;
     // Disabling saving does not disable eframe's startup restore. Give the
     // mini player its own path, and Shell disables its egui-memory saving too,
     // so it neither reads the main window's geometry nor creates a state file.
-    let persistence_path = mini.as_ref().map(|mini| mini.storage_path.clone());
+    let persistence_path = mini
+        .as_ref()
+        .map(|mini| mini.storage_path.clone())
+        .or_else(|| {
+            fixed_demo.then(|| {
+                std::env::temp_dir()
+                    .join(format!("magicspot-demo-window-{}.ron", std::process::id()))
+            })
+        });
     let icon = if cfg!(target_os = "macos") {
         // macOS takes the dock icon from the bundle's .icns, which is the
         // 1024px drawing with the platform's rounding. Setting a window
@@ -720,6 +735,8 @@ mod native_window_tests {
             options.viewport.max_inner_size,
             Some(egui::vec2(760.0, 800.0))
         );
+        assert!(!options.persist_window);
+        assert!(options.persistence_path.is_some());
     }
 
     #[test]

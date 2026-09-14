@@ -14,6 +14,11 @@ cd MagicSpot
 powershell -ExecutionPolicy Bypass -File .\build.ps1 -Release
 ```
 
+Run the command from the repository directory. From elsewhere, pass the full
+path to `build.ps1`. `Blocking waiting for file lock on build directory` means
+another Cargo process is using `target`; it is informational and the build
+continues when that process releases the lock.
+
 The result is `target/release/magicspot.exe`. `build.ps1` deliberately uses
 `--no-default-features`, which keeps the ordinary build small and avoids the
 optional MilkDrop native toolchain.

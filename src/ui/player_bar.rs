@@ -38,6 +38,25 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             let ui = &mut bar_ui;
             let now = app.now_playing();
             let width = content.width();
+            if width < 720.0 {
+                // A three-column desktop player cannot shrink indefinitely:
+                // its two side regions eventually consume the transport's
+                // space.  At phone-sized window widths keep the essential
+                // controls in their own right-hand band and put a seek line
+                // along the bottom of the bar.
+                let controls_width = 116.0_f32.min((width * 0.42).max(96.0));
+                let left = Rect::from_min_max(
+                    content.min,
+                    pos2(content.right() - controls_width - 8.0, content.bottom()),
+                );
+                now_playing_block(app, ui, left, now.as_ref(), true);
+                let controls = Rect::from_min_max(
+                    pos2(content.right() - controls_width, content.top()),
+                    content.max,
+                );
+                compact_transport(app, ui, now.as_ref(), controls, content);
+                return;
+            }
             let side = (width * 0.3).clamp(200.0, 420.0);
             let cy = content.center().y;
             let left =
@@ -50,7 +69,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             // egui's cross-axis centring is unreliable across nested layouts of
             // mixed heights, so each region is placed in an explicit band that
             // is sized to its content and centred on the bar's midline.
-            now_playing_block(app, ui, left, now.as_ref());
+            now_playing_block(app, ui, left, now.as_ref(), false);
 
             transport(app, ui, now.as_ref(), center);
 
@@ -65,7 +84,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         });
 }
 
-fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option<&NowPlaying>) {
+fn now_playing_block(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    region: Rect,
+    now: Option<&NowPlaying>,
+    compact: bool,
+) {
     let palette = app.palette;
     let cy = region.center().y;
     let cover_rect = Rect::from_min_size(pos2(region.left() + 4.0, cy - 28.0), Vec2::splat(56.0));
@@ -155,7 +180,7 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
             app.actions.push(Action::SettingsChanged);
         }
     }
-    let heart_width = if now.is_episode { 0.0 } else { 42.0 };
+    let heart_width = if now.is_episode || compact { 0.0 } else { 42.0 };
     let text_left = cover_rect.right() + 12.0;
     let text_width = (region.right() - text_left - heart_width).max(40.0);
     let text_rect = Rect::from_min_size(pos2(text_left, cy - 18.0), vec2(text_width, 36.0));
@@ -218,7 +243,7 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
         }
     }
 
-    if !now.is_episode {
+    if !now.is_episode && !compact {
         let saved = app.is_saved(&now.uri).unwrap_or(false);
         let (icon, color, tooltip) = if saved {
             (Icon::HeartFilled, palette.accent, "Remove from Liked Songs")
@@ -248,6 +273,144 @@ fn now_playing_block(app: &mut App, ui: &mut egui::Ui, region: Rect, now: Option
         if theme::icon_button(&mut heart_ui, icon, 17.0, color, palette.text, tooltip).clicked() {
             app.actions.push(Action::ToggleSaved(now.uri.clone()));
         }
+    }
+}
+
+/// Narrow-window player: the cover and clipped title retain most of the bar,
+/// while the three controls people need most remain stable at the right.
+/// Shuffle, repeat, queue, lyrics, and volume remain available from shortcuts;
+/// all optional buttons return as soon as the regular desktop layout fits.
+fn compact_transport(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    now: Option<&NowPlaying>,
+    region: Rect,
+    full_region: Rect,
+) {
+    let palette = app.palette;
+    let enabled = now.is_some_and(|now| now.can_control) || app.is_connected();
+    let playing = now.is_some_and(|now| now.playing);
+    let loading = now.is_some_and(|now| now.loading);
+    let dim = if enabled {
+        palette.secondary
+    } else {
+        palette.dim
+    };
+    let cy = region.center().y - 5.0;
+    let widths = [28.0, 38.0, 28.0];
+    let gap = 4.0;
+    let total = widths.iter().sum::<f32>() + gap * 2.0;
+    let mut x = region.center().x - total / 2.0;
+    let mut slot = |width: f32| {
+        let rect = Rect::from_center_size(pos2(x + width / 2.0, cy), vec2(width, 38.0));
+        x += width + gap;
+        rect
+    };
+    let centered = |ui: &mut egui::Ui, rect: Rect| {
+        ui.new_child(
+            UiBuilder::new()
+                .max_rect(rect)
+                .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
+        )
+    };
+
+    let mut cell = centered(ui, slot(widths[0]));
+    if theme::icon_button(
+        &mut cell,
+        Icon::SkipBackFilled,
+        17.0,
+        dim,
+        palette.text,
+        "Previous",
+    )
+    .clicked()
+    {
+        app.actions.push(Action::Previous);
+    }
+
+    let disc = slot(widths[1]);
+    if loading || app.any_play_pending() {
+        ui.painter()
+            .circle_filled(disc.center(), 18.0, palette.text);
+        let mut cell = centered(ui, disc);
+        theme::spinner(&mut cell, 22.0, palette.window);
+    } else {
+        let icon = if playing {
+            Icon::PauseFilled
+        } else {
+            Icon::PlayFilled
+        };
+        let hover = if palette.dark {
+            egui::Color32::WHITE
+        } else {
+            palette.text
+        };
+        let mut cell = centered(ui, disc);
+        if theme::circle_button(
+            &mut cell,
+            icon,
+            36.0,
+            palette.text,
+            hover,
+            palette.window,
+            if playing { "Pause" } else { "Play" },
+        )
+        .clicked()
+        {
+            app.actions.push(Action::TogglePlay);
+        }
+    }
+
+    let mut cell = centered(ui, slot(widths[2]));
+    if theme::icon_button(
+        &mut cell,
+        Icon::SkipForwardFilled,
+        17.0,
+        dim,
+        palette.text,
+        "Next",
+    )
+    .clicked()
+    {
+        app.actions.push(Action::Next);
+    }
+
+    let (position, duration) = now
+        .map(|now| (now.position_ms, now.duration_ms))
+        .unwrap_or((0, 0));
+    let slider_width = (full_region.width() - 8.0).max(40.0);
+    let slider_rect = Rect::from_min_size(
+        pos2(full_region.left() + 4.0, full_region.bottom() - 11.0),
+        vec2(slider_width, 10.0),
+    );
+    let mut slider_ui = ui.new_child(
+        UiBuilder::new()
+            .max_rect(slider_rect)
+            .layout(Layout::left_to_right(Align::Center)),
+    );
+    let fraction = if duration > 0 {
+        position as f32 / duration as f32
+    } else {
+        0.0
+    };
+    match thin_slider(
+        &mut slider_ui,
+        &palette,
+        egui::Id::new("seek-slider"),
+        "Playback position (%)",
+        fraction,
+        slider_width,
+        None,
+    ) {
+        SliderEvent::Dragging(value) => app.seek_preview = Some(value),
+        SliderEvent::Committed(value) => {
+            app.seek_preview = None;
+            if duration > 0 {
+                app.actions
+                    .push(Action::Seek((value * duration as f32) as u32));
+            }
+        }
+        SliderEvent::None => {}
     }
 }
 

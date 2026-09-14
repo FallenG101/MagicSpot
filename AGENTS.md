@@ -7,6 +7,10 @@ small native egui/librespot architecture.
 - UI code belongs in `src/ui/`; apply emitted actions in `src/app.rs`.
 - Keep network and playback work off the UI thread.
 - Keep settings backward compatible and never log credentials.
+- Prefer Spotify-backed, account-synced features. Avoid local-only folders,
+  playback history, or library state that would make MagicSpot inconsistent
+  with the user's mobile Spotify experience; keep local state to clearly
+  installation-specific preferences, caches, and session restoration.
 - Do not add a browser engine, telemetry, hosted backend, alternate Spotify
   audio source, DRM bypass, or unsupported lossless claims.
 - Add focused tests for state and migration changes. Use the `demo` feature

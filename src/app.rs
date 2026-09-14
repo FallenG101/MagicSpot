@@ -741,6 +741,14 @@ impl App {
         ctx.options_mut(|options| options.input_options.line_scroll_speed = 120.0);
     }
 
+    /// A fixed-size demo capture owns its geometry, so the previous interactive
+    /// session must not resize or reposition that throwaway window on attach.
+    #[cfg(feature = "demo")]
+    pub fn discard_restored_window_geometry(&mut self) {
+        self.session_window_size = None;
+        self.session_window_pos = None;
+    }
+
     /// The window is gone but the process stays: audio, the tray, and the
     /// media controls keep running until Show or Quit.
     pub fn window_gone(&mut self) {
@@ -10264,6 +10272,27 @@ mod tests {
                 100.0, 150.0
             ))),
             "attach restored the main window position: {commands:?}"
+        );
+    }
+
+    #[cfg(feature = "demo")]
+    #[test]
+    fn fixed_demo_size_discards_restored_window_geometry() {
+        let mut app = headless_app();
+        app.session_window_size = Some([1024.0, 768.0]);
+        app.session_window_pos = Some([100.0, 150.0]);
+        app.discard_restored_window_geometry();
+
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |_ui| app.attach(&ctx));
+        output.textures_delta.clear();
+        let commands = &output.viewport_output[&egui::ViewportId::ROOT].commands;
+        assert!(
+            !commands.iter().any(|command| matches!(
+                command,
+                egui::ViewportCommand::InnerSize(_) | egui::ViewportCommand::OuterPosition(_)
+            )),
+            "fixed demo geometry was overridden: {commands:?}"
         );
     }
 
