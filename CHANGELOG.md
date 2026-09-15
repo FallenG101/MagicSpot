@@ -5,6 +5,13 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+## v0.9.91 — 2026-09-15
+
+- Simplified built-in accent colors and allowed saved custom themes to be
+  applied directly from Appearance settings.
+- Fixed switching between OLED and custom themes so the most recent selection
+  takes effect.
+
 ## v0.9.9 — 2026-09-15
 
 - Added explicit sign-in, playback authorization, device discovery, and

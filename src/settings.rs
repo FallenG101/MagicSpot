@@ -59,6 +59,8 @@ impl LyricsAlignment {
 #[serde(rename_all = "lowercase")]
 pub enum ColorTheme {
     #[default]
+    Blue,
+    Green,
     Aqua,
     Violet,
     Rose,
@@ -69,22 +71,25 @@ pub enum ColorTheme {
 }
 
 impl ColorTheme {
-    pub const ALL: [Self; 5] = [
-        Self::Aqua,
-        Self::Violet,
+    pub const ALL: [Self; 7] = [
+        Self::Blue,
         Self::Rose,
+        Self::Green,
         Self::Amber,
         Self::Neutral,
+        Self::Violet,
+        Self::Aqua,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Aqua => "Aqua",
-            Self::Violet => "Violet",
-            Self::Rose => "Rose",
-            Self::Amber => "Amber",
-            Self::Neutral => "Neutral gray",
-            Self::Oled => "Aqua",
+            Self::Blue => "Blue",
+            Self::Rose => "Red",
+            Self::Green => "Green",
+            Self::Amber => "Yellow",
+            Self::Neutral => "White",
+            Self::Violet => "Purple",
+            Self::Aqua | Self::Oled => "Cyan",
         }
     }
 }
@@ -305,7 +310,7 @@ impl Default for Settings {
             audio_cache: true,
             audio_cache_mb: 1024,
             theme: ThemeChoice::Dark,
-            color_theme: ColorTheme::Aqua,
+            color_theme: ColorTheme::Blue,
             custom_themes: Vec::new(),
             active_custom_theme: None,
             accent_from_art: true,
@@ -376,7 +381,7 @@ impl Settings {
         };
         if settings.color_theme == ColorTheme::Oled {
             settings.theme = ThemeChoice::Oled;
-            settings.color_theme = ColorTheme::Aqua;
+            settings.color_theme = ColorTheme::Blue;
         }
         settings.custom_themes = settings
             .custom_themes
@@ -448,7 +453,7 @@ mod tests {
         assert_eq!(older.lyrics_font, LyricsFont::Inter);
         assert!(!older.lyrics_glow);
         assert_eq!(older.lyrics_tint_strength, 22);
-        assert_eq!(older.color_theme, ColorTheme::Aqua);
+        assert_eq!(older.color_theme, ColorTheme::Blue);
         assert!(!older.lyrics_word_progress_beta);
         let settings = super::Settings {
             lyrics_font_size: 36,
@@ -479,7 +484,7 @@ mod tests {
         let settings = Settings::load(&path);
 
         assert_eq!(settings.theme, ThemeChoice::Oled);
-        assert_eq!(settings.color_theme, ColorTheme::Aqua);
+        assert_eq!(settings.color_theme, ColorTheme::Blue);
         let _ = std::fs::remove_dir_all(root);
     }
 

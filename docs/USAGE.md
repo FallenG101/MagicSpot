@@ -21,15 +21,15 @@ area above it.
 ## Appearance
 
 Choose Light, Dark, Follow System, or OLED at the top of Appearance settings.
-Then choose the circular Aqua, Violet, Rose, Amber, or Neutral Gray swatch;
-hover a swatch to see its name. Neutral Gray uses darker charcoal surfaces,
-and both it and OLED accept album-art color. Disable **Colour from album art**
-for a stable palette.
+Then choose a circular Blue, Red, Green, Yellow, White, Purple, or Cyan accent;
+hover a swatch to see its name. OLED remains available as the final appearance
+choice. Disable **Color from album art** for a stable accent.
 
-Select **Custom themes → Open editor** to preview accent, surface, panel, and
-text colors across the live interface. The editor also controls layered
-transparency and floating-surface blur. Save or rename themes, reset the draft,
-or move themes between installations by copying and pasting their JSON.
+Choose a saved custom theme directly in Appearance settings, or select **Open
+editor** to preview accent, surface, panel, and text colors across the live
+interface. The editor also controls layered transparency and floating-surface
+blur. Save or rename themes, reset the draft, or move themes between
+installations by copying and pasting their JSON.
 
 ## Playlists and albums
 

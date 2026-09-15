@@ -9,13 +9,12 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v0.9.9**. It adds clearer connection progress
-  and retries, guided Client ID setup, a connection diagnostics page, and a
-  live custom theme editor with saved themes and JSON import/export.
-- The v0.9.9 release was validated with formatting, strict Clippy, the complete
-  demo-feature test suite (370 library tests and 5 binary tests), and the
-  lightweight release build. The new pages were visually checked at 1180×820
-  and at the 760×520 minimum.
+- The latest user release is **v0.9.91**. It simplifies the built-in accent
+  colors, supports applying saved custom themes directly from Settings, and
+  fixes switching between OLED and custom themes.
+- The v0.9.91 release was validated with formatting and the complete
+  demo-feature test suite (370 library tests and 5 binary tests). The preceding
+  v0.9.9 release also passed strict Clippy and the lightweight release build.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -83,11 +82,12 @@ presented as specific to this installation.
   changing the follow logic so one song cannot inherit another song's offset.
 - Estimated word-by-word progress is labelled **Beta** and defaults to off. It
   interpolates between line timestamps; it is not true per-word timing.
-- Appearance choices are Dark, Light, Follow system, and OLED. Accent choices
-  use circular Aqua, Violet, Rose, Amber, and Neutral gray swatches. Album-art
-  color is optional; OLED and Neutral remain tintable. v0.9.9 adds saved custom
-  palettes with live editing, layered transparency, shadow
-  blur, reset, and portable JSON import/export.
+- Appearance choices are Dark, Light, Follow system, and OLED, in that order.
+  Accent choices are Blue, Red, Green, Yellow, White, Purple, and Cyan.
+  Album-art color is optional. Saved custom palettes can be selected directly
+  in Settings or changed in the editor, which supports layered transparency,
+  shadow blur, reset, and portable JSON import/export. OLED and custom themes
+  are mutually exclusive; the most recent selection takes effect.
 - Blurred lyric backdrops use a 128-pixel derived PNG made off the UI thread and
   cached through `ArtLoader`; do not blur full-size artwork every frame.
 - Loaded lyric documents are held behind `Arc` because the playback repaint
@@ -254,7 +254,7 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Exercise the v0.9.9 connection and custom theme flows across varied real
+- Exercise the v0.9.91 connection and custom theme flows across varied real
   Spotify accounts and devices, then fold fixes into the road to 1.0.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
@@ -266,5 +266,5 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The requested v0.9.9 feature implementation and local validation are complete.
+The requested v0.9.91 feature implementation and local validation are complete.
 Continue stabilization toward 1.0 from user feedback and real-account testing.

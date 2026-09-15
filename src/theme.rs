@@ -30,15 +30,35 @@ pub struct Palette {
 
 impl Palette {
     pub fn dark() -> Self {
-        Self::for_theme(true, crate::settings::ColorTheme::Aqua, false)
+        Self::for_theme(true, crate::settings::ColorTheme::Blue, false)
     }
 
     pub fn light() -> Self {
-        Self::for_theme(false, crate::settings::ColorTheme::Aqua, false)
+        Self::for_theme(false, crate::settings::ColorTheme::Blue, false)
     }
 
     pub fn for_theme(dark: bool, theme: crate::settings::ColorTheme, oled: bool) -> Self {
         let (accent, accent_hover, on_accent) = match (dark, theme) {
+            (true, crate::settings::ColorTheme::Blue) => (
+                Color32::from_rgb(0x3b, 0x82, 0xf6),
+                Color32::from_rgb(0x60, 0xa5, 0xfa),
+                Color32::WHITE,
+            ),
+            (false, crate::settings::ColorTheme::Blue) => (
+                Color32::from_rgb(0x25, 0x63, 0xeb),
+                Color32::from_rgb(0x1d, 0x4e, 0xd8),
+                Color32::WHITE,
+            ),
+            (true, crate::settings::ColorTheme::Green) => (
+                Color32::from_rgb(0x22, 0xc5, 0x5e),
+                Color32::from_rgb(0x4a, 0xde, 0x80),
+                Color32::BLACK,
+            ),
+            (false, crate::settings::ColorTheme::Green) => (
+                Color32::from_rgb(0x16, 0xa3, 0x4a),
+                Color32::from_rgb(0x15, 0x80, 0x3d),
+                Color32::WHITE,
+            ),
             (true, crate::settings::ColorTheme::Aqua) => (
                 Color32::from_rgb(0x55, 0xe6, 0xdf),
                 Color32::from_rgb(0x86, 0xf3, 0xed),
@@ -50,44 +70,42 @@ impl Palette {
                 Color32::WHITE,
             ),
             (true, crate::settings::ColorTheme::Violet) => (
-                Color32::from_rgb(0xb6, 0x91, 0xff),
-                Color32::from_rgb(0xcb, 0xb0, 0xff),
-                Color32::from_rgb(0x16, 0x0e, 0x28),
+                Color32::from_rgb(0xa8, 0x55, 0xf7),
+                Color32::from_rgb(0xc0, 0x84, 0xfc),
+                Color32::WHITE,
             ),
             (false, crate::settings::ColorTheme::Violet) => (
-                Color32::from_rgb(0x75, 0x43, 0xc6),
-                Color32::from_rgb(0x60, 0x35, 0xa8),
+                Color32::from_rgb(0x93, 0x33, 0xea),
+                Color32::from_rgb(0x7e, 0x22, 0xce),
                 Color32::WHITE,
             ),
             (true, crate::settings::ColorTheme::Rose) => (
-                Color32::from_rgb(0xff, 0x82, 0xae),
-                Color32::from_rgb(0xff, 0xa8, 0xc5),
-                Color32::from_rgb(0x2d, 0x0e, 0x19),
+                Color32::from_rgb(0xef, 0x44, 0x44),
+                Color32::from_rgb(0xf8, 0x71, 0x71),
+                Color32::WHITE,
             ),
             (false, crate::settings::ColorTheme::Rose) => (
-                Color32::from_rgb(0xc9, 0x3f, 0x72),
-                Color32::from_rgb(0xa8, 0x2f, 0x5c),
+                Color32::from_rgb(0xdc, 0x26, 0x26),
+                Color32::from_rgb(0xb9, 0x1c, 0x1c),
                 Color32::WHITE,
             ),
             (true, crate::settings::ColorTheme::Amber) => (
-                Color32::from_rgb(0xff, 0xc8, 0x5c),
-                Color32::from_rgb(0xff, 0xda, 0x88),
-                Color32::from_rgb(0x2b, 0x1a, 0x03),
+                Color32::from_rgb(0xfa, 0xcc, 0x15),
+                Color32::from_rgb(0xfd, 0xe0, 0x47),
+                Color32::BLACK,
             ),
             (false, crate::settings::ColorTheme::Amber) => (
-                Color32::from_rgb(0xb8, 0x72, 0x00),
-                Color32::from_rgb(0x96, 0x5d, 0x00),
+                Color32::from_rgb(0xca, 0x8a, 0x04),
+                Color32::from_rgb(0xa1, 0x62, 0x07),
                 Color32::WHITE,
             ),
-            (true, crate::settings::ColorTheme::Neutral) => (
-                Color32::from_rgb(0xd8, 0xdc, 0xe2),
-                Color32::WHITE,
-                Color32::from_rgb(0x18, 0x1a, 0x1e),
-            ),
+            (true, crate::settings::ColorTheme::Neutral) => {
+                (Color32::WHITE, Color32::WHITE, Color32::BLACK)
+            }
             (false, crate::settings::ColorTheme::Neutral) => (
-                Color32::from_rgb(0x3f, 0x45, 0x4d),
-                Color32::from_rgb(0x25, 0x29, 0x2f),
                 Color32::WHITE,
+                Color32::from_rgb(0xe5, 0xe7, 0xeb),
+                Color32::BLACK,
             ),
             (_, crate::settings::ColorTheme::Oled) => (
                 Color32::from_rgb(0x66, 0xee, 0xe8),
@@ -119,6 +137,16 @@ impl Palette {
         }
         if dark {
             let (window, panel, surface) = match theme {
+                crate::settings::ColorTheme::Blue => (
+                    Color32::from_rgb(0x0d, 0x11, 0x18),
+                    Color32::from_rgb(0x13, 0x19, 0x24),
+                    Color32::from_rgb(0x1c, 0x25, 0x34),
+                ),
+                crate::settings::ColorTheme::Green => (
+                    Color32::from_rgb(0x0c, 0x14, 0x10),
+                    Color32::from_rgb(0x12, 0x1c, 0x17),
+                    Color32::from_rgb(0x1a, 0x29, 0x21),
+                ),
                 crate::settings::ColorTheme::Aqua => (
                     Color32::from_rgb(0x0a, 0x12, 0x15),
                     Color32::from_rgb(0x0f, 0x1a, 0x1e),

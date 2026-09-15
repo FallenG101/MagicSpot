@@ -542,6 +542,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         && app.settings.theme != choice
                     {
                         app.settings.theme = choice;
+                        if choice == ThemeChoice::Oled {
+                            app.settings.active_custom_theme = None;
+                            app.theme_preview = None;
+                        }
                         changed = true;
                     }
                 }
@@ -550,8 +554,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         widgets::setting_row(
             ui,
             &palette,
-            "Colour theme",
-            "Choose MagicSpot's accent and surface character.",
+            "Accent color",
+            "Choose a simple built-in accent color.",
             |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
@@ -579,24 +583,48 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 .unwrap_or_else(|| "Create, rename, import, and export your own palette.".into())
                 .as_str(),
             |ui| {
-                if theme::soft_button(ui, &palette, Some(Icon::Pencil), "Open editor", false)
-                    .clicked()
-                {
-                    app.actions
-                        .push(Action::Open(crate::model::Page::ThemeEditor));
-                }
+                ui.horizontal(|ui| {
+                    if !app.settings.custom_themes.is_empty() {
+                        let selected = app
+                            .settings
+                            .active_custom_theme
+                            .clone()
+                            .unwrap_or_else(|| "Select theme".into());
+                        ui.menu_button(&selected, |ui| {
+                            for saved in app.settings.custom_themes.clone() {
+                                let active = app.settings.active_custom_theme.as_deref()
+                                    == Some(saved.name.as_str());
+                                if ui.selectable_label(active, &saved.name).clicked() {
+                                    app.settings.active_custom_theme = Some(saved.name);
+                                    app.theme_preview = None;
+                                    if app.settings.theme == ThemeChoice::Oled {
+                                        app.settings.theme = ThemeChoice::Dark;
+                                    }
+                                    changed = true;
+                                    ui.close();
+                                }
+                            }
+                        });
+                    }
+                    if theme::soft_button(ui, &palette, Some(Icon::Pencil), "Open editor", false)
+                        .clicked()
+                    {
+                        app.actions
+                            .push(Action::Open(crate::model::Page::ThemeEditor));
+                    }
+                });
             },
         );
         widgets::setting_row(
             ui,
             &palette,
-            "Colour from album art",
-            "Use the current cover's colour on pages and tintable panels.",
+            "Color from album art",
+            "Use the current cover's color on pages and tintable panels.",
             |ui| {
                 if widgets::switch(
                     ui,
                     &palette,
-                    "Colour from album art",
+                    "Color from album art",
                     &mut app.settings.accent_from_art,
                 )
                 .changed()
