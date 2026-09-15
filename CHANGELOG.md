@@ -5,6 +5,8 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+## v0.9.9 — 2026-09-15
+
 - Added explicit sign-in, playback authorization, device discovery, and
   playback-transfer progress with actionable retries and diagnostics.
 - Added guided personal Spotify Client ID setup with a copyable redirect URI.

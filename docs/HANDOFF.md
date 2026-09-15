@@ -9,16 +9,13 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v0.9.2**. It adds the compact player-bar layout
-  below 720 points and refreshes the user, build, authentication, privacy, and
-  maintainer documentation.
-- Main contains unreleased v0.10.0 work after the v0.9.2 tag: clearer connection
-  progress and retries, guided Client ID setup, a connection diagnostics page,
-  and a live custom theme editor with saved themes and JSON import/export.
-  Formatting, strict Clippy, the complete demo-feature test suite (370 library
-  tests and 5 binary tests), and the lightweight release build pass. The new
-  pages have been visually checked at 1180×820 and at the 760×520 minimum.
-  The version remains 0.9.2 until the user requests the v0.10.0 release.
+- The latest user release is **v0.9.9**. It adds clearer connection progress
+  and retries, guided Client ID setup, a connection diagnostics page, and a
+  live custom theme editor with saved themes and JSON import/export.
+- The v0.9.9 release was validated with formatting, strict Clippy, the complete
+  demo-feature test suite (370 library tests and 5 binary tests), and the
+  lightweight release build. The new pages were visually checked at 1180×820
+  and at the 760×520 minimum.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -88,8 +85,8 @@ presented as specific to this installation.
   interpolates between line timestamps; it is not true per-word timing.
 - Appearance choices are Dark, Light, Follow system, and OLED. Accent choices
   use circular Aqua, Violet, Rose, Amber, and Neutral gray swatches. Album-art
-  color is optional; OLED and Neutral remain tintable. Unreleased v0.10.0 work
-  adds saved custom palettes with live editing, layered transparency, shadow
+  color is optional; OLED and Neutral remain tintable. v0.9.9 adds saved custom
+  palettes with live editing, layered transparency, shadow
   blur, reset, and portable JSON import/export.
 - Blurred lyric backdrops use a 128-pixel derived PNG made off the UI thread and
   cached through `ArtLoader`; do not blur full-size artwork every frame.
@@ -257,9 +254,8 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- v0.9.2 packages the narrow-window player-bar fix and documentation refresh.
-- Exercise the unreleased connection and custom theme flows with a real Spotify
-  account before the requested v0.10.0 release.
+- Exercise the v0.9.9 connection and custom theme flows across varied real
+  Spotify accounts and devices, then fold fixes into the road to 1.0.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
 - Favor account-synced Spotify features over local-only library organization or
@@ -270,6 +266,5 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The requested v0.10.0 feature implementation and local validation are complete;
-real-account acceptance testing and the release itself remain. Check the
-working tree and the newest user request before publishing.
+The requested v0.9.9 feature implementation and local validation are complete.
+Continue stabilization toward 1.0 from user feedback and real-account testing.
