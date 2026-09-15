@@ -168,7 +168,7 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                     ui.add_space(6.0);
                     theme::text(ui, "Connect to a device", theme::bold(16.0), palette.text);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if app.devices_loading {
+                        if app.devices_loading || app.receivers_loading {
                             theme::spinner(ui, 16.0, palette.accent);
                         } else if theme::icon_button(
                             ui,
@@ -223,6 +223,26 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                     .cloned()
                     .collect();
 
+                if (app.devices_error.is_some() || app.receivers_error.is_some())
+                    && !app.devices_loading
+                    && !app.receivers_loading
+                {
+                    ui.horizontal(|ui| {
+                        theme::text(
+                            ui,
+                            "Device discovery needs attention.",
+                            theme::regular(12.5),
+                            palette.danger,
+                        );
+                        if theme::link(ui, "Try again", theme::medium(12.5), palette.accent)
+                            .clicked()
+                        {
+                            app.actions.push(Action::RefreshDevices);
+                        }
+                    });
+                    ui.add_space(4.0);
+                }
+
                 if !app.local_ready {
                     enable_playback_row(app, ui);
                 }
@@ -239,6 +259,7 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                 for device in &devices {
                     let is_local = device.id.is_some() && device.id == local_id;
                     let active = device.id.is_some() && device.id == active_id;
+                    let transferring = device.id.as_deref() == app.transfer_pending.as_deref();
                     let name = if is_local && !device.name.contains("this computer") {
                         format!("{} (this computer)", device.name)
                     } else {
@@ -271,7 +292,9 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                         theme::medium(14.0),
                         color,
                     );
-                    let status = if active {
+                    let status = if transferring {
+                        "Transferring playback…".to_string()
+                    } else if active {
                         "Listening on this device".to_string()
                     } else if device.is_restricted {
                         "Restricted".to_string()
@@ -291,12 +314,25 @@ pub fn popup(app: &mut App, ctx: &egui::Context) {
                             palette.secondary
                         },
                     );
-                    if active {
+                    if transferring {
+                        let mut spin = ui.new_child(
+                            egui::UiBuilder::new()
+                                .max_rect(Rect::from_center_size(
+                                    pos2(rect.right() - 18.0, rect.center().y),
+                                    egui::Vec2::splat(20.0),
+                                ))
+                                .layout(egui::Layout::centered_and_justified(
+                                    egui::Direction::LeftToRight,
+                                )),
+                        );
+                        theme::spinner(&mut spin, 16.0, palette.accent);
+                    } else if active {
                         let dot = pos2(rect.right() - 16.0, rect.center().y);
                         ui.painter().circle_filled(dot, 4.0, palette.accent);
                     }
                     if response.clicked()
                         && !active
+                        && app.transfer_pending.is_none()
                         && let Some(id) = &device.id
                     {
                         app.actions.push(Action::Transfer(id.clone()));

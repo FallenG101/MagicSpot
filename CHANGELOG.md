@@ -5,6 +5,11 @@ after the newest tag remain development work until the next release.
 
 ## Unreleased
 
+- Added explicit sign-in, playback authorization, device discovery, and
+  playback-transfer progress with actionable retries and diagnostics.
+- Added guided personal Spotify Client ID setup with a copyable redirect URI.
+- Added a live custom theme editor with saved themes and JSON import/export.
+
 ## v0.9.2 — 2026-09-13
 
 - Added a compact now-playing layout below 720 points so track information,

@@ -34,6 +34,7 @@ pub const PLAYBACK_REDIRECT_PORT: u16 = 8898;
 /// Omarchy Spotify.
 pub const DEFAULT_WEB_CLIENT_ID: &str = "d420a117a32841c2b3474932e49fb54b";
 pub const WEB_REDIRECT_PORT: u16 = 8989;
+pub const WEB_REDIRECT_URI: &str = "http://127.0.0.1:8989/login";
 
 pub const REDIRECT_PATH: &str = "/login";
 

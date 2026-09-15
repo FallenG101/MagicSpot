@@ -198,6 +198,8 @@ pub struct App {
     pub offline: bool,
     pub palette: Palette,
     applied_dark: Option<bool>,
+    applied_custom_theme: Option<crate::settings::CustomTheme>,
+    pub theme_preview: Option<crate::settings::CustomTheme>,
 
     pub auth: AuthStatus,
     pub user: Option<User>,
@@ -228,9 +230,16 @@ pub struct App {
     pub receivers: Vec<crate::zeroconf::Receiver>,
     /// The receiver currently being handed the account, by name.
     pub activating_receiver: Option<String>,
+    pub receivers_loading: bool,
+    pub receivers_error: Option<String>,
     pub devices_loading: bool,
+    pub devices_error: Option<String>,
     devices_fetched_at: Option<Instant>,
     pub selected_device: Option<String>,
+    /// Device id currently receiving a Spotify playback transfer.
+    pub transfer_pending: Option<String>,
+    /// Most recent failed transfer, retained so diagnostics can retry it.
+    pub transfer_error: Option<(String, String)>,
     pub queue: Loadable<Queue>,
     queue_fetched_at: Option<Instant>,
     /// Latest queue request sequence. Older responses are discarded.
@@ -495,7 +504,12 @@ impl App {
             .last_page
             .as_deref()
             .and_then(Page::decode)
-            .filter(|page| !matches!(page, Page::Settings | Page::Queue))
+            .filter(|page| {
+                !matches!(
+                    page,
+                    Page::Settings | Page::Diagnostics | Page::ThemeEditor | Page::Queue
+                )
+            })
             .unwrap_or(Page::Home);
 
         let mut app = Self {
@@ -518,6 +532,8 @@ impl App {
             offline: false,
             palette: Palette::dark(),
             applied_dark: None,
+            applied_custom_theme: None,
+            theme_preview: None,
             auth: AuthStatus::Starting,
             user: None,
             local_device_id: None,
@@ -535,9 +551,14 @@ impl App {
             devices: Vec::new(),
             receivers: Vec::new(),
             activating_receiver: None,
+            receivers_loading: false,
+            receivers_error: None,
             devices_loading: false,
+            devices_error: None,
             devices_fetched_at: None,
             selected_device: None,
+            transfer_pending: None,
+            transfer_error: None,
             queue: if session.last_track.is_some() && !session.last_queue_rows.is_empty() {
                 // The queue as it was at close, shown until something
                 // plays; then the live queue takes over.
@@ -1283,7 +1304,16 @@ impl App {
             match event {
                 Event::Auth(status) => self.handle_auth(status),
                 Event::Playback(status) => self.handle_playback(status),
-                Event::Receivers(receivers) => self.receivers = receivers,
+                Event::Receivers(result) => {
+                    self.receivers_loading = false;
+                    match result {
+                        Ok(receivers) => {
+                            self.receivers = receivers;
+                            self.receivers_error = None;
+                        }
+                        Err(error) => self.receivers_error = Some(error),
+                    }
+                }
                 Event::ReceiverActivated { name, result } => {
                     self.activating_receiver = None;
                     match result {
@@ -1294,7 +1324,10 @@ impl App {
                             self.devices_fetched_at = None;
                             self.refresh_devices();
                         }
-                        Err(error) => self.toast_error(format!("{name}: {error}")),
+                        Err(error) => {
+                            self.receivers_error = Some(error.clone());
+                            self.toast_error(format!("{name}: {error}"));
+                        }
                     }
                 }
                 Event::Local(state) => self.handle_local(*state),
@@ -1409,6 +1442,15 @@ impl App {
                 self.local_device_id = None;
                 self.local_playback = LocalPlayback::Unavailable;
                 self.remote = None;
+                self.devices.clear();
+                self.receivers.clear();
+                self.devices_loading = false;
+                self.receivers_loading = false;
+                self.devices_error = None;
+                self.receivers_error = None;
+                self.selected_device = None;
+                self.transfer_pending = None;
+                self.transfer_error = None;
                 self.rootlist.clear();
                 self.rootlist_cache = None;
                 self.editable_by_grant.clear();
@@ -2208,10 +2250,22 @@ impl App {
     fn apply_theme(&mut self, ctx: &egui::Context) {
         let oled = self.settings.theme == ThemeChoice::Oled;
         let dark = oled || ctx.theme() == egui::Theme::Dark;
-        if self.applied_dark != Some(dark) {
-            self.palette = Palette::for_theme(dark, self.settings.color_theme, oled);
+        let custom = self.theme_preview.as_ref().or_else(|| {
+            self.settings.active_custom_theme.as_ref().and_then(|name| {
+                self.settings
+                    .custom_themes
+                    .iter()
+                    .find(|theme| &theme.name == name)
+            })
+        });
+        if self.applied_dark != Some(dark) || self.applied_custom_theme.as_ref() != custom {
+            self.palette = match custom {
+                Some(custom) => Palette::from_custom(dark, custom),
+                None => Palette::for_theme(dark, self.settings.color_theme, oled),
+            };
             theme::apply(ctx, &self.palette);
             self.applied_dark = Some(dark);
+            self.applied_custom_theme = custom.cloned();
             self.accents.clear();
             self.accent_pending.clear();
         }
@@ -2594,6 +2648,14 @@ impl App {
             }
             Page::Queue => self.refresh_queue(true),
             Page::Settings => {}
+            Page::ThemeEditor => {}
+            Page::Diagnostics => {
+                self.devices_fetched_at = None;
+                self.refresh_devices();
+                self.receivers_loading = true;
+                self.receivers_error = None;
+                self.backend.send(Command::DiscoverReceivers);
+            }
         }
     }
 
@@ -2910,6 +2972,7 @@ impl App {
             return;
         }
         self.devices_loading = true;
+        self.devices_error = None;
         self.backend.api(ApiRequest::Devices);
     }
 
@@ -3341,6 +3404,7 @@ impl App {
                 self.devices_fetched_at = Some(Instant::now());
                 match result {
                     Ok(devices) => {
+                        self.devices_error = None;
                         self.devices = devices;
                         self.control_devices_stale = true;
                         if let Some((name, since)) = self.pending_transfer_to.clone() {
@@ -3367,7 +3431,11 @@ impl App {
                             self.selected_device = None;
                         }
                     }
-                    Err(error) => self.toast_error(format!("Couldn't list devices: {error}")),
+                    Err(error) => {
+                        let message = error.to_string();
+                        self.devices_error = Some(message.clone());
+                        self.toast_error(format!("Couldn't list devices: {message}"));
+                    }
                 }
             }
             ApiResponse::PlaybackState { seq, result } => {
@@ -4322,12 +4390,19 @@ impl App {
             }
             ApiResponse::Transferred { device_id, result } => match result {
                 Ok(()) => {
+                    self.transfer_pending = None;
+                    self.transfer_error = None;
                     self.selected_device = Some(device_id);
                     self.show_devices = false;
                     self.poll_remote_soon();
                     self.refresh_devices();
                 }
-                Err(error) => self.toast_error(format!("Couldn't switch device: {error}")),
+                Err(error) => {
+                    self.transfer_pending = None;
+                    let message = error.to_string();
+                    self.transfer_error = Some((device_id, message.clone()));
+                    self.toast_error(format!("Couldn't switch device: {message}"));
+                }
             },
             ApiResponse::QueueAdded { label: _, result } => match result {
                 Ok(()) => {
@@ -4346,6 +4421,7 @@ impl App {
     // ---- navigation ------------------------------------------------------------
 
     pub fn open(&mut self, page: Page) {
+        self.discard_theme_preview_before(&page);
         self.touch_page(&page);
         if *self.page() == page {
             self.ensure_loaded(page.clone());
@@ -4433,6 +4509,13 @@ impl App {
 
     pub fn forward_destination(&self) -> Option<&Page> {
         self.history.get(self.history_index + 1)
+    }
+
+    fn discard_theme_preview_before(&mut self, page: &Page) {
+        if matches!(self.page(), Page::ThemeEditor) && !matches!(page, Page::ThemeEditor) {
+            self.theme_preview = None;
+            self.applied_dark = None;
+        }
     }
 
     fn touch_page(&mut self, page: &Page) {
@@ -5211,7 +5294,9 @@ impl App {
     }
 
     fn transfer(&mut self, device_id: String) {
+        self.transfer_error = None;
         if Some(device_id.as_str()) == self.local_device_id.as_deref() {
+            self.transfer_pending = None;
             self.selected_device = None;
             self.show_devices = false;
             let was_playing = self.now_playing().is_some_and(|now| now.playing);
@@ -5250,6 +5335,7 @@ impl App {
             return;
         }
         let play = self.now_playing().is_some_and(|now| now.playing);
+        self.transfer_pending = Some(device_id.clone());
         self.selected_device = Some(device_id.clone());
         self.backend.api(ApiRequest::Transfer { device_id, play });
     }
@@ -5532,6 +5618,8 @@ impl App {
             }
             Action::Back => {
                 if self.can_go_back() {
+                    let destination = self.history[self.history_index - 1].clone();
+                    self.discard_theme_preview_before(&destination);
                     self.history_index -= 1;
                     let page = self.page().clone();
                     self.touch_page(&page);
@@ -5542,6 +5630,8 @@ impl App {
             }
             Action::Forward => {
                 if self.can_go_forward() {
+                    let destination = self.history[self.history_index + 1].clone();
+                    self.discard_theme_preview_before(&destination);
                     self.history_index += 1;
                     let page = self.page().clone();
                     self.touch_page(&page);
@@ -5878,6 +5968,8 @@ impl App {
             Action::RefreshDevices => {
                 self.devices_fetched_at = None;
                 self.refresh_devices();
+                self.receivers_loading = true;
+                self.receivers_error = None;
                 self.backend.send(Command::DiscoverReceivers);
             }
             Action::ClearQueue => self.clear_queue(),
@@ -5890,6 +5982,10 @@ impl App {
                     ctx.copy_text(url);
                     self.toast("Link copied");
                 }
+            }
+            Action::CopyText { text, confirmation } => {
+                ctx.copy_text(text);
+                self.toast(confirmation);
             }
             Action::OpenInSpotify(uri) => {
                 if let Some(url) = util::open_spotify_url(&uri) {
@@ -5991,6 +6087,8 @@ impl App {
                     self.refresh_devices();
                     // Receivers waiting on the network are invisible to the
                     // Web API, so look for them ourselves.
+                    self.receivers_loading = true;
+                    self.receivers_error = None;
                     self.backend.send(Command::DiscoverReceivers);
                 }
             }
@@ -6004,6 +6102,45 @@ impl App {
                     ThemeChoice::System => egui::ThemePreference::System,
                     ThemeChoice::Oled => egui::ThemePreference::Dark,
                 });
+            }
+            Action::PreviewCustomTheme(theme) => {
+                self.theme_preview = Some(theme);
+                self.applied_dark = None;
+            }
+            Action::SaveCustomTheme {
+                theme,
+                original_name,
+            } => {
+                let theme = theme.normalized();
+                self.settings.custom_themes.retain(|saved| {
+                    Some(saved.name.as_str()) != original_name.as_deref()
+                        && saved.name != theme.name
+                });
+                self.settings.custom_themes.push(theme.clone());
+                self.settings
+                    .custom_themes
+                    .sort_by_key(|saved| saved.name.to_lowercase());
+                self.settings.active_custom_theme = Some(theme.name.clone());
+                self.theme_preview = Some(theme.clone());
+                self.settings_dirty = true;
+                self.applied_dark = None;
+                self.toast(format!("Saved theme {}", theme.name));
+            }
+            Action::DeleteCustomTheme(name) => {
+                self.settings
+                    .custom_themes
+                    .retain(|theme| theme.name != name);
+                if self.settings.active_custom_theme.as_deref() == Some(name.as_str()) {
+                    self.settings.active_custom_theme = None;
+                }
+                if self.theme_preview.as_ref().map(|theme| theme.name.as_str())
+                    == Some(name.as_str())
+                {
+                    self.theme_preview = None;
+                }
+                self.settings_dirty = true;
+                self.applied_dark = None;
+                self.toast(format!("Deleted theme {name}"));
             }
             Action::RestartEngine => {
                 self.save_settings();
@@ -6957,6 +7094,20 @@ fn evict_lru_map<V>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn leaving_theme_editor_discards_an_unsaved_preview() {
+        let mut app = headless_app();
+        app.open(Page::Settings);
+        app.open(Page::ThemeEditor);
+        app.theme_preview = Some(crate::settings::CustomTheme::default());
+
+        app.apply(Action::Back, &egui::Context::default());
+
+        assert_eq!(app.page(), &Page::Settings);
+        assert_eq!(app.theme_preview, None);
+        assert_eq!(app.applied_dark, None);
+    }
 
     #[test]
     fn shift_wheel_moves_the_shelf_without_scrolling_the_page() {

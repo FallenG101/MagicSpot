@@ -108,6 +108,8 @@ pub enum Page {
     Show(String),
     Queue,
     Settings,
+    Diagnostics,
+    ThemeEditor,
 }
 
 impl Page {
@@ -127,6 +129,8 @@ impl Page {
             Page::Show(_) => "Podcast",
             Page::Queue => "Queue",
             Page::Settings => "Settings",
+            Page::Diagnostics => "Connection diagnostics",
+            Page::ThemeEditor => "Custom theme editor",
         }
     }
 
@@ -146,6 +150,8 @@ impl Page {
             Page::Show(id) => format!("show:{id}"),
             Page::Queue => "queue".into(),
             Page::Settings => "settings".into(),
+            Page::Diagnostics => "diagnostics".into(),
+            Page::ThemeEditor => "theme-editor".into(),
         }
     }
 
@@ -161,6 +167,8 @@ impl Page {
             "episodes" => Page::Episodes,
             "queue" => Page::Queue,
             "settings" => Page::Settings,
+            "diagnostics" => Page::Diagnostics,
+            "theme-editor" => Page::ThemeEditor,
             other => {
                 let (kind, id) = other.split_once(':')?;
                 match kind {
@@ -199,6 +207,8 @@ mod page_tests {
         assert_eq!(Page::LikedSongs.label(), "Liked Songs");
         assert_eq!(Page::Playlist("anything".into()).label(), "Playlist");
         assert_eq!(Page::Show("anything".into()).label(), "Podcast");
+        assert_eq!(Page::Diagnostics.label(), "Connection diagnostics");
+        assert_eq!(Page::decode("theme-editor"), Some(Page::ThemeEditor));
     }
 }
 
@@ -828,6 +838,11 @@ pub enum Action {
     SaveQueueAsPlaylist,
     RefreshQueue,
     CopyLink(String),
+    /// Copy plain text with a user-facing confirmation.
+    CopyText {
+        text: String,
+        confirmation: String,
+    },
     /// Open a web page in the browser.
     OpenUrl(String),
     OpenInSpotify(String),
@@ -861,6 +876,12 @@ pub enum Action {
     /// Ask GitHub for the latest release and report the result to the user.
     CheckForUpdates,
     SettingsChanged,
+    PreviewCustomTheme(crate::settings::CustomTheme),
+    SaveCustomTheme {
+        theme: crate::settings::CustomTheme,
+        original_name: Option<String>,
+    },
+    DeleteCustomTheme(String),
     RestartEngine,
     EnablePlayback,
     ShowWindow,

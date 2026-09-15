@@ -89,6 +89,49 @@ impl ColorTheme {
     }
 }
 
+/// A user-authored interface palette. Colors stay as plain RGB so exported
+/// themes are portable; transparency is applied uniformly to layered panels.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomTheme {
+    pub name: String,
+    pub accent: [u8; 3],
+    pub surface: [u8; 3],
+    pub panel: [u8; 3],
+    pub text: [u8; 3],
+    /// Visual softness for menus and floating surfaces, 0..=100.
+    pub blur: u8,
+    /// Transparency of layered panels, 0..=60.
+    pub transparency: u8,
+}
+
+impl Default for CustomTheme {
+    fn default() -> Self {
+        Self {
+            name: "My theme".into(),
+            accent: [0x55, 0xe6, 0xdf],
+            surface: [0x17, 0x25, 0x2a],
+            panel: [0x0f, 0x1a, 0x1e],
+            text: [0xf2, 0xf4, 0xf6],
+            blur: 50,
+            transparency: 8,
+        }
+    }
+}
+
+impl CustomTheme {
+    pub fn normalized(mut self) -> Self {
+        self.name = self.name.trim().to_string();
+        if self.name.is_empty() {
+            self.name = "My theme".into();
+        }
+        self.name.truncate(48);
+        self.blur = self.blur.min(100);
+        self.transparency = self.transparency.min(60);
+        self
+    }
+}
+
 /// Mini-player visualizer mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -145,6 +188,10 @@ pub struct Settings {
     pub audio_cache_mb: u64,
     pub theme: ThemeChoice,
     pub color_theme: ColorTheme,
+    /// User-authored palettes, stored locally with the other appearance prefs.
+    pub custom_themes: Vec<CustomTheme>,
+    /// Name of the selected custom palette, or `None` for a built-in palette.
+    pub active_custom_theme: Option<String>,
     /// Tint the interface with the colour of the playing album's art.
     pub accent_from_art: bool,
     /// Last local volume, 0..=65535.
@@ -259,6 +306,8 @@ impl Default for Settings {
             audio_cache_mb: 1024,
             theme: ThemeChoice::Dark,
             color_theme: ColorTheme::Aqua,
+            custom_themes: Vec::new(),
+            active_custom_theme: None,
             accent_from_art: true,
             volume: (u16::MAX as u32 * 70 / 100) as u16,
             sidebar_visible: true,
@@ -329,6 +378,19 @@ impl Settings {
             settings.theme = ThemeChoice::Oled;
             settings.color_theme = ColorTheme::Aqua;
         }
+        settings.custom_themes = settings
+            .custom_themes
+            .drain(..)
+            .map(CustomTheme::normalized)
+            .collect();
+        if settings.active_custom_theme.as_ref().is_some_and(|active| {
+            !settings
+                .custom_themes
+                .iter()
+                .any(|theme| &theme.name == active)
+        }) {
+            settings.active_custom_theme = None;
+        }
         settings
     }
 
@@ -374,7 +436,7 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColorTheme, LyricsAlignment, LyricsFont, Settings, ThemeChoice};
+    use super::{ColorTheme, CustomTheme, LyricsAlignment, LyricsFont, Settings, ThemeChoice};
 
     #[test]
     fn lyrics_size_is_backward_compatible_and_persists() {
@@ -523,6 +585,45 @@ mod tests {
             restored.personal_app_nudge_at,
             settings.personal_app_nudge_at
         );
+    }
+
+    #[test]
+    fn custom_themes_are_backward_compatible_and_round_trip() {
+        let older: Settings = serde_json::from_str("{}").unwrap();
+        assert!(older.custom_themes.is_empty());
+        assert_eq!(older.active_custom_theme, None);
+
+        let custom = CustomTheme {
+            name: "Midnight Drive".into(),
+            accent: [12, 34, 56],
+            transparency: 24,
+            blur: 72,
+            ..CustomTheme::default()
+        };
+        let settings = Settings {
+            custom_themes: vec![custom.clone()],
+            active_custom_theme: Some(custom.name.clone()),
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let restored: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.custom_themes, vec![custom]);
+        assert_eq!(
+            restored.active_custom_theme.as_deref(),
+            Some("Midnight Drive")
+        );
+    }
+
+    #[test]
+    fn imported_theme_values_are_safely_normalized() {
+        let theme: CustomTheme =
+            serde_json::from_str(r#"{"name":"  ","blur":255,"transparency":255,"accent":[1,2,3]}"#)
+                .unwrap();
+        let theme = theme.normalized();
+        assert_eq!(theme.name, "My theme");
+        assert_eq!(theme.blur, 100);
+        assert_eq!(theme.transparency, 60);
+        assert_eq!(theme.accent, [1, 2, 3]);
     }
 }
 

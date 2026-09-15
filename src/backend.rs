@@ -513,7 +513,7 @@ pub enum Event {
     Auth(AuthStatus),
     Playback(LocalPlayback),
     /// Receivers seen on the local network that Spotify has not listed.
-    Receivers(Vec<crate::zeroconf::Receiver>),
+    Receivers(Result<Vec<crate::zeroconf::Receiver>, String>),
     ReceiverActivated {
         name: String,
         result: Result<(), String>,
@@ -1444,13 +1444,10 @@ impl Worker {
         let events = self.events.clone();
         let waker = self.waker.clone();
         tokio::task::spawn_blocking(move || {
-            match crate::zeroconf::discover(std::time::Duration::from_secs(3)) {
-                Ok(receivers) => {
-                    let _ = events.send(Event::Receivers(receivers));
-                    waker.wake();
-                }
-                Err(error) => log::debug!("no receivers found on the network: {error}"),
-            }
+            let result = crate::zeroconf::discover(std::time::Duration::from_secs(3))
+                .map_err(|error| error.to_string());
+            let _ = events.send(Event::Receivers(result));
+            waker.wake();
         });
     }
 

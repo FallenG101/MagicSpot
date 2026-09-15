@@ -58,11 +58,25 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, connecting: bool) {
                                 app.actions.push(Action::CancelSignIn);
                             }
                         }
-                        _ if connecting => {
+                        AuthStatus::Starting => {
                             ui.horizontal(|ui| {
                                 ui.add_space((ui.available_width() - 200.0).max(0.0) / 2.0);
                                 theme::spinner(ui, 18.0, palette.accent);
-                                theme::text(ui, "Connecting to Spotify…", theme::medium(14.0), palette.text);
+                                theme::text(ui, "Restoring your session…", theme::medium(14.0), palette.text);
+                            });
+                        }
+                        AuthStatus::Connecting => {
+                            ui.horizontal(|ui| {
+                                ui.add_space((ui.available_width() - 200.0).max(0.0) / 2.0);
+                                theme::spinner(ui, 18.0, palette.accent);
+                                theme::text(ui, "Signing in to Spotify…", theme::medium(14.0), palette.text);
+                            });
+                        }
+                        AuthStatus::Connected { .. } if connecting => {
+                            ui.horizontal(|ui| {
+                                ui.add_space((ui.available_width() - 200.0).max(0.0) / 2.0);
+                                theme::spinner(ui, 18.0, palette.accent);
+                                theme::text(ui, "Loading your Spotify profile…", theme::medium(14.0), palette.text);
                             });
                         }
                         AuthStatus::Failed(message) => {

@@ -26,6 +26,11 @@ hover a swatch to see its name. Neutral Gray uses darker charcoal surfaces,
 and both it and OLED accept album-art color. Disable **Colour from album art**
 for a stable palette.
 
+Select **Custom themes → Open editor** to preview accent, surface, panel, and
+text colors across the live interface. The editor also controls layered
+transparency and floating-surface blur. Save or rename themes, reset the draft,
+or move themes between installations by copying and pasting their JSON.
+
 ## Playlists and albums
 
 Collection pages place their artwork on the right of a contained header when
@@ -121,6 +126,11 @@ development app to a small allowlist. Add any other account under the app's
 User Management page before authorizing it. Development-app quotas are counted
 per Spotify developer account, so multiple personal Client IDs owned by the
 same account share that account's allowance.
+
+The Account section walks through app creation, the exact redirect URI, and
+Client ID entry. Open **Connection diagnostics** there or from the account menu
+to inspect and retry sign-in, local playback authorization, device discovery,
+and playback transfer. Its copyable support report excludes credentials.
 
 Update checks are disabled by default. When enabled, MagicSpot checks GitHub at
 most once per day and offers the release page when a newer version exists. The

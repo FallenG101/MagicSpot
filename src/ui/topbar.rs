@@ -256,6 +256,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                             ui,
                             &palette,
                             Some(Icon::Info),
+                            "Connection diagnostics",
+                        ) {
+                            app.actions.push(Action::Open(Page::Diagnostics));
+                        }
+                        if super::widgets::menu_item(
+                            ui,
+                            &palette,
+                            Some(Icon::Info),
                             "Keyboard shortcuts",
                         ) {
                             app.actions

@@ -25,6 +25,7 @@ pub struct Palette {
     pub warning: Color32,
     pub overlay: Color32,
     pub shadow: Color32,
+    pub shadow_blur: u8,
 }
 
 impl Palette {
@@ -113,6 +114,7 @@ impl Palette {
                 warning: Color32::from_rgb(0xff, 0xc4, 0x62),
                 overlay: Color32::from_rgb(0x08, 0x08, 0x09),
                 shadow: Color32::from_black_alpha(220),
+                shadow_blur: 24,
             };
         }
         if dark {
@@ -166,6 +168,7 @@ impl Palette {
                 warning: Color32::from_rgb(0xf2, 0xb8, 0x5c),
                 overlay: Color32::from_rgb(0x22, 0x27, 0x2e),
                 shadow: Color32::from_black_alpha(140),
+                shadow_blur: 24,
             }
         } else {
             Self {
@@ -186,7 +189,74 @@ impl Palette {
                 warning: Color32::from_rgb(0xb8, 0x7a, 0x14),
                 overlay: Color32::from_rgb(0xff, 0xff, 0xff),
                 shadow: Color32::from_black_alpha(50),
+                shadow_blur: 24,
             }
+        }
+    }
+
+    pub fn from_custom(dark: bool, theme: &crate::settings::CustomTheme) -> Self {
+        let accent = Color32::from_rgb(theme.accent[0], theme.accent[1], theme.accent[2]);
+        let panel_rgb = Color32::from_rgb(theme.panel[0], theme.panel[1], theme.panel[2]);
+        let surface_rgb = Color32::from_rgb(theme.surface[0], theme.surface[1], theme.surface[2]);
+        let text = Color32::from_rgb(theme.text[0], theme.text[1], theme.text[2]);
+        let alpha = ((100u16 - theme.transparency.min(60) as u16) * 255 / 100) as u8;
+        let backdrop = if dark { Color32::BLACK } else { Color32::WHITE };
+        let window = blend_color(panel_rgb, backdrop, 0.26);
+        let accent_hover = blend_color(
+            accent,
+            if dark { Color32::WHITE } else { Color32::BLACK },
+            0.16,
+        );
+        let luminance = (theme.accent[0] as u32 * 299
+            + theme.accent[1] as u32 * 587
+            + theme.accent[2] as u32 * 114)
+            / 1000;
+        let on_accent = if luminance > 150 {
+            Color32::from_rgb(0x0c, 0x10, 0x12)
+        } else {
+            Color32::WHITE
+        };
+        Self {
+            dark,
+            window,
+            panel: with_alpha(panel_rgb, alpha),
+            surface: with_alpha(surface_rgb, alpha),
+            surface_hover: with_alpha(
+                blend_color(
+                    surface_rgb,
+                    if dark { Color32::WHITE } else { Color32::BLACK },
+                    0.08,
+                ),
+                alpha,
+            ),
+            surface_active: with_alpha(
+                blend_color(
+                    surface_rgb,
+                    if dark { Color32::WHITE } else { Color32::BLACK },
+                    0.15,
+                ),
+                alpha,
+            ),
+            outline: blend_color(surface_rgb, text, 0.16),
+            text,
+            secondary: blend_color(text, panel_rgb, 0.36),
+            dim: blend_color(text, panel_rgb, 0.58),
+            accent,
+            accent_hover,
+            on_accent,
+            danger: if dark {
+                Color32::from_rgb(0xf5, 0x71, 0x7f)
+            } else {
+                Color32::from_rgb(0xd6, 0x3b, 0x4c)
+            },
+            warning: if dark {
+                Color32::from_rgb(0xf2, 0xb8, 0x5c)
+            } else {
+                Color32::from_rgb(0xb8, 0x7a, 0x14)
+            },
+            overlay: with_alpha(panel_rgb, alpha),
+            shadow: Color32::from_black_alpha(if dark { 140 } else { 55 }),
+            shadow_blur: (theme.blur.min(100) as u16 * 40 / 100) as u8,
         }
     }
 
@@ -213,6 +283,10 @@ impl Palette {
 
 fn blend_color(from: Color32, to: Color32, amount: f32) -> Color32 {
     Color32::from(egui::Rgba::from(from) * (1.0 - amount) + egui::Rgba::from(to) * amount)
+}
+
+fn with_alpha(color: Color32, alpha: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
 }
 
 pub const RADIUS: u8 = 8;
@@ -304,13 +378,13 @@ pub fn apply(ctx: &egui::Context, palette: &Palette) {
     visuals.menu_corner_radius = CornerRadius::same(RADIUS);
     visuals.window_shadow = egui::epaint::Shadow {
         offset: [0, 6],
-        blur: 24,
+        blur: palette.shadow_blur,
         spread: 0,
         color: palette.shadow,
     };
     visuals.popup_shadow = egui::epaint::Shadow {
         offset: [0, 4],
-        blur: 16,
+        blur: (palette.shadow_blur as u16 * 2 / 3) as u8,
         spread: 0,
         color: palette.shadow,
     };
@@ -1059,5 +1133,24 @@ mod tests {
             }
         });
         output.textures_delta.clear();
+    }
+
+    #[test]
+    fn custom_palette_applies_colors_transparency_and_blur() {
+        let custom = crate::settings::CustomTheme {
+            accent: [10, 20, 30],
+            surface: [40, 50, 60],
+            panel: [70, 80, 90],
+            text: [220, 230, 240],
+            transparency: 20,
+            blur: 75,
+            ..Default::default()
+        };
+        let palette = Palette::from_custom(true, &custom);
+        assert_eq!(palette.accent, Color32::from_rgb(10, 20, 30));
+        assert_eq!(palette.text, Color32::from_rgb(220, 230, 240));
+        assert_eq!(palette.surface.a(), 204);
+        assert_eq!(palette.panel.a(), 204);
+        assert_eq!(palette.shadow_blur, 30);
     }
 }

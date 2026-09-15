@@ -127,12 +127,47 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             });
         });
         ui.add_space(10.0);
+        widgets::setting_row(
+            ui,
+            &palette,
+            "1. Create a Spotify app",
+            "Open Spotify's developer dashboard and create a Development Mode app.",
+            |ui| {
+                if theme::soft_button(
+                    ui,
+                    &palette,
+                    Some(Icon::ExternalLink),
+                    "Open dashboard",
+                    false,
+                )
+                .clicked()
+                {
+                    app.actions.push(Action::OpenUrl(
+                        "https://developer.spotify.com/dashboard".into(),
+                    ));
+                }
+            },
+        );
+        widgets::setting_row(
+            ui,
+            &palette,
+            "2. Add the redirect URI",
+            crate::auth::WEB_REDIRECT_URI,
+            |ui| {
+                if theme::soft_button(ui, &palette, Some(Icon::Copy), "Copy URI", false).clicked() {
+                    app.actions.push(Action::CopyText {
+                        text: crate::auth::WEB_REDIRECT_URI.into(),
+                        confirmation: "Redirect URI copied".into(),
+                    });
+                }
+            },
+        );
         let mut client_id = app.settings.web_client_id.clone().unwrap_or_default();
         widgets::setting_row(
             ui,
             &palette,
-            "Personal Spotify app",
-            "Use a personal Development Mode app for a separate API quota. The shared app stays active.",
+            "3. Paste the Client ID",
+            "The Client ID is safe to store here. MagicSpot never needs your Client Secret.",
             |ui| {
                 let response = Frame::new()
                     .fill(palette.surface)
@@ -152,19 +187,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     let trimmed = client_id.trim().to_string();
                     app.settings.web_client_id = (!trimmed.is_empty()).then_some(trimmed);
                     changed = true;
-                }
-            },
-        );
-        widgets::setting_row(
-            ui,
-            &palette,
-            "Create an app",
-            "Create one for free in Spotify's developer dashboard.",
-            |ui| {
-                if theme::pill_button(ui, &palette, "Setup guide", false).clicked() {
-                    app.actions.push(Action::OpenUrl(
-                        "https://developer.spotify.com/dashboard".into(),
-                    ));
                 }
             },
         );
@@ -216,6 +238,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 },
             );
         }
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Connection diagnostics",
+            "Inspect sign-in, playback authorization, device discovery, and transfer status.",
+            |ui| {
+                if theme::soft_button(ui, &palette, Some(Icon::Info), "Open", false).clicked() {
+                    app.actions
+                        .push(Action::Open(crate::model::Page::Diagnostics));
+                }
+            },
+        );
     });
 
     section(ui, &palette, "Playback on this computer", |ui| {
@@ -527,10 +561,30 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                             && choice != app.settings.color_theme
                         {
                             app.settings.color_theme = choice;
+                            app.settings.active_custom_theme = None;
                             changed = true;
                         }
                     }
                 });
+            },
+        );
+        widgets::setting_row(
+            ui,
+            &palette,
+            "Custom themes",
+            app.settings
+                .active_custom_theme
+                .as_deref()
+                .map(|name| format!("Using {name}"))
+                .unwrap_or_else(|| "Create, rename, import, and export your own palette.".into())
+                .as_str(),
+            |ui| {
+                if theme::soft_button(ui, &palette, Some(Icon::Pencil), "Open editor", false)
+                    .clicked()
+                {
+                    app.actions
+                        .push(Action::Open(crate::model::Page::ThemeEditor));
+                }
             },
         );
         widgets::setting_row(

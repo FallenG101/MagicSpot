@@ -14,13 +14,21 @@ releases:
 ```sh
 git fetch upstream
 git log --oneline main..upstream/main
-git merge upstream/main
+git diff --stat main...upstream/main
 ```
 
-Resolve conflicts with MagicSpot's product decisions in mind, then run the
-full checks from `docs/BUILDING.md`. Files most likely to conflict are
+Integrate focused fixes in small, reviewable batches by cherry-picking or
+reimplementing them, then run the full checks from `docs/BUILDING.md`. Avoid a
+wholesale merge unless the divergence has first been audited. Files most likely to conflict are
 `src/app.rs`, `src/settings.rs`, `src/theme.rs`, and `src/ui/` because MagicSpot
 intentionally changes the shell, appearance, and lyrics behavior.
+
+At the 2026-09-13 audit, Fastpotify was 76 commits ahead of the shared fork
+point while MagicSpot was 23 commits ahead, with broad overlap across core UI
+and application files. Full merges are therefore high-conflict; selective
+playback, API, platform, accessibility, and performance integrations remain
+manageable and worthwhile. Review upstream weekly or before each substantial
+MagicSpot feature batch.
 
 Keep the feature-rich interface and branding in MagicSpot. Generic fixes for
 playback, Spotify API behavior, accessibility, performance, or platform support

@@ -3,6 +3,7 @@
 pub mod artist;
 pub mod collection;
 mod devices;
+pub mod diagnostics;
 mod dialogs;
 pub mod home;
 mod keys;
@@ -15,6 +16,7 @@ pub mod search;
 pub mod settings;
 pub mod show;
 pub mod sidebar;
+pub mod theme_editor;
 pub mod topbar;
 pub mod widgets;
 pub mod winamp;
@@ -126,7 +128,12 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                     if let Some(tint) = tint {
                         let strength = if matches!(
                             app.page(),
-                            Page::Home | Page::Search | Page::Settings | Page::Queue
+                            Page::Home
+                                | Page::Search
+                                | Page::Settings
+                                | Page::Diagnostics
+                                | Page::ThemeEditor
+                                | Page::Queue
                         ) {
                             0.45
                         } else {
@@ -164,6 +171,8 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                                         Page::Show(id) => show::show(app, ui, &id),
                                         Page::Queue => queue::page(app, ui),
                                         Page::Settings => settings::show(app, ui),
+                                        Page::Diagnostics => diagnostics::show(app, ui),
+                                        Page::ThemeEditor => theme_editor::show(app, ui),
                                     }
                                 });
                         });
