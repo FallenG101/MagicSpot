@@ -36,7 +36,7 @@ Spotify.
 - Circular Aqua, Violet, Rose, Amber, and Neutral Gray accent swatches. Neutral
   Gray and OLED support album-art color while keeping their darker surfaces.
 - Independent MagicSpot executable, application IDs, data directories, icons,
-  installers, command protocol, and built-in Winamp skin.
+  installers, and command protocol.
 
 ![MagicSpot lyrics](docs/assets/images/magicspot-lyrics.png)
 
@@ -81,15 +81,12 @@ build or add `-Demo` for offline sample data.
 
 ## Build on macOS or Linux
 
-The standard lightweight build excludes the optional MilkDrop dependency:
-
 ```sh
-cargo build --locked --release --no-default-features
+cargo build --locked --release
 ```
 
 Linux also needs its audio and window-system development packages. See
-[Building](docs/BUILDING.md) for package names, full checks, Nix, and optional
-MilkDrop requirements.
+[Building](docs/BUILDING.md) for package names, full checks, and Nix.
 
 ## Sign in and play
 
@@ -128,8 +125,7 @@ does not currently replace or install the application automatically.
   metadata.
 - A compact player-bar layout that keeps the essential transport controls
   usable in narrow windows.
-- A Winamp-compatible mini player with `.wsz` skins and an equalizer.
-- Optional projectM/MilkDrop visualizations when built with default features.
+- A ten-band equalizer with presets, balance, and mono controls.
 
 ## Project layout
 

@@ -65,8 +65,9 @@ fn build(sender: Sender<TrayCommand>, wake: Wake) -> Result<Item, Box<dyn std::e
     let icon = Icon::from_rgba(crate::util::tray_template_rgba(size as usize), size, size)?;
     let menu = Menu::new();
     let play_pause = MenuItem::with_id(PLAY_PAUSE, play_pause_label(false), true, None);
+    let show_label = format!("Show or hide {}", crate::DISPLAY_NAME);
     menu.append_items(&[
-        &MenuItem::with_id(SHOW, "Show or hide MagicSpot", true, None),
+        &MenuItem::with_id(SHOW, show_label, true, None),
         &PredefinedMenuItem::separator(),
         &play_pause,
         &MenuItem::with_id(NEXT, "Next", true, None),
@@ -76,7 +77,7 @@ fn build(sender: Sender<TrayCommand>, wake: Wake) -> Result<Item, Box<dyn std::e
     ])?;
     let builder = TrayIconBuilder::new()
         .with_icon(icon)
-        .with_tooltip("MagicSpot")
+        .with_tooltip(crate::DISPLAY_NAME)
         .with_menu(Box::new(menu));
     // On Windows and macOS, a plain click shows or hides the window; the
     // menu stays on right click.

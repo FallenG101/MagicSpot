@@ -137,27 +137,6 @@ impl CustomTheme {
     }
 }
 
-/// Mini-player visualizer mode.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum VisMode {
-    #[default]
-    Bars,
-    Scope,
-    Off,
-}
-
-impl VisMode {
-    /// Next mode in the display's click cycle.
-    pub fn next(self) -> Self {
-        match self {
-            Self::Bars => Self::Scope,
-            Self::Scope => Self::Off,
-            Self::Off => Self::Bars,
-        }
-    }
-}
-
 impl ThemeChoice {
     pub const ALL: [ThemeChoice; 4] = [Self::Dark, Self::Light, Self::System, Self::Oled];
 
@@ -246,23 +225,6 @@ pub struct Settings {
     pub sidebar_order: Vec<String>,
     /// Interface zoom, egui's zoom factor; Ctrl+plus/minus changes it.
     pub zoom: f32,
-    /// The Winamp window is open.
-    pub winamp_window: bool,
-    /// Skin file or folder name. `None` selects the built-in skin.
-    pub skin: Option<String>,
-    /// Screen pixels per skin pixel; `None` picks double size for the
-    /// display.
-    pub skin_scale: Option<u8>,
-    /// The Winamp window stays above other windows.
-    pub winamp_on_top: bool,
-    /// The mini player's visualiser: bars, scope, or off.
-    pub vis: VisMode,
-    /// The playlist window is open under the mini player.
-    pub playlist_open: bool,
-    /// How tall the playlist window is, in skin pixels.
-    pub playlist_height: u32,
-    /// The equalizer window is open under the mini player.
-    pub eq_open: bool,
     /// The equalizer shapes local playback.
     pub eq_on: bool,
     /// The preamp, in decibels, never above zero.
@@ -273,27 +235,6 @@ pub struct Settings {
     pub balance: f32,
     /// Play both channels the same.
     pub mono: bool,
-    /// The playlist window is rolled up to its title bar.
-    pub playlist_shaded: bool,
-    /// The equalizer window is rolled up to its title bar.
-    pub eq_shaded: bool,
-    /// The main window is rolled up to its title bar.
-    pub winamp_shaded: bool,
-    /// The MilkDrop window is open (its own window, not part of the skin).
-    pub milkdrop_open: bool,
-    /// How long each preset plays before the next, in seconds.
-    pub milkdrop_seconds: u32,
-    /// How many frames a second the MilkDrop window draws; 0 is uncapped.
-    pub milkdrop_fps: u32,
-    /// Last reported MilkDrop screen refresh rate. The first value sets the
-    /// default frame rate; this field is not directly configurable.
-    pub milkdrop_screen_hz: u32,
-    /// The picture's inner resolution: 1 full, 2 half, 4 quarter.
-    pub milkdrop_scale: u32,
-    /// The MilkDrop window fills the screen.
-    pub milkdrop_fullscreen: bool,
-    /// The MilkDrop window's size in logical points, when not full-screen.
-    pub milkdrop_size: [f32; 2],
 }
 
 impl Default for Settings {
@@ -339,29 +280,11 @@ impl Default for Settings {
             pinned_contexts: Vec::new(),
             sidebar_order: Vec::new(),
             zoom: 1.0,
-            winamp_window: false,
-            skin: None,
-            skin_scale: None,
-            winamp_on_top: false,
-            vis: VisMode::default(),
-            playlist_open: false,
-            playlist_height: 174,
-            eq_open: false,
             eq_on: false,
             eq_preamp_db: 0.0,
             eq_bands_db: [0.0; 10],
             balance: 0.0,
             mono: false,
-            playlist_shaded: false,
-            eq_shaded: false,
-            winamp_shaded: false,
-            milkdrop_open: false,
-            milkdrop_seconds: crate::milkdrop::DEFAULT_SECONDS,
-            milkdrop_fps: crate::milkdrop::DEFAULT_FPS,
-            milkdrop_screen_hz: 0,
-            milkdrop_scale: 1,
-            milkdrop_fullscreen: false,
-            milkdrop_size: crate::milkdrop::DEFAULT_SIZE,
         }
     }
 }
@@ -489,45 +412,45 @@ mod tests {
     }
 
     #[test]
-    fn older_settings_keep_the_winamp_window_closed_and_the_built_in_skin() {
-        let settings: Settings = serde_json::from_str(r#"{"zoom": 1.2}"#).unwrap();
-        assert!(!settings.winamp_window);
-        assert_eq!(settings.skin, None);
-        assert_eq!(settings.skin_scale, None);
-        assert!(!settings.winamp_on_top);
-        assert_eq!(settings.vis, super::VisMode::Bars);
-        assert!(!settings.playlist_open);
-        assert_eq!(settings.playlist_height, 174);
-        assert!(!settings.eq_on);
-        assert_eq!(settings.eq_bands_db, [0.0; 10]);
-        assert_eq!(settings.balance, 0.0);
-        assert!(!settings.mono);
-        assert!(!settings.playlist_shaded);
-        assert!(!settings.eq_shaded);
-        assert!(!settings.winamp_shaded);
+    fn obsolete_visualizer_settings_are_ignored_without_losing_audio_preferences() {
+        let settings: Settings = serde_json::from_str(
+            r#"{"winamp_window":true,"skin":"classic.wsz","milkdrop_open":true,"eq_on":true,"eq_preamp_db":-3.0,"balance":0.25,"mono":true}"#,
+        )
+        .unwrap();
+        assert!(settings.eq_on);
+        assert_eq!(settings.eq_preamp_db, -3.0);
+        assert_eq!(settings.balance, 0.25);
+        assert!(settings.mono);
+        let encoded = serde_json::to_string(&settings).unwrap();
+        assert!(!encoded.contains("winamp"));
+        assert!(!encoded.contains("milkdrop"));
+        assert!(!encoded.contains("skin"));
     }
 
     #[test]
-    fn the_visualiser_cycles_bars_scope_off() {
-        use super::VisMode;
-        assert_eq!(VisMode::Bars.next(), VisMode::Scope);
-        assert_eq!(VisMode::Scope.next(), VisMode::Off);
-        assert_eq!(VisMode::Off.next(), VisMode::Bars);
-        let settings: Settings = serde_json::from_str(r#"{"vis": "scope"}"#).unwrap();
-        assert_eq!(settings.vis, VisMode::Scope);
-    }
+    fn loading_old_settings_leaves_local_visualizer_files_untouched() {
+        let root = std::env::temp_dir().join(format!(
+            "magicspot-obsolete-files-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let skin = root.join("skins").join("classic.wsz");
+        let preset = root.join("milkdrop").join("favorite.milk");
+        std::fs::create_dir_all(skin.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(preset.parent().unwrap()).unwrap();
+        std::fs::write(&skin, b"old skin").unwrap();
+        std::fs::write(&preset, b"old preset").unwrap();
+        std::fs::write(
+            root.join("settings.json"),
+            r#"{"skin":"classic.wsz","milkdrop_open":true}"#,
+        )
+        .unwrap();
 
-    #[test]
-    fn a_chosen_skin_round_trips() {
-        let settings = Settings {
-            winamp_window: true,
-            skin: Some("Zaxon.wsz".into()),
-            skin_scale: Some(3),
-            ..Settings::default()
-        };
-        let json = serde_json::to_string(&settings).unwrap();
-        let restored: Settings = serde_json::from_str(&json).unwrap();
-        assert_eq!(restored, settings);
+        let _ = Settings::load(&root.join("settings.json"));
+
+        assert_eq!(std::fs::read(&skin).unwrap(), b"old skin");
+        assert_eq!(std::fs::read(&preset).unwrap(), b"old preset");
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
@@ -678,10 +601,6 @@ pub struct SessionState {
     pub queue_open: Option<bool>,
     /// Which tab the queue panel showed: `queue` or `recents`.
     pub queue_tab: Option<String>,
-    /// Last outer position of the Winamp window.
-    pub winamp_pos: Option<[f32; 2]>,
-    /// Last outer position of the MilkDrop window.
-    pub milkdrop_pos: Option<[f32; 2]>,
 }
 
 impl SessionState {
@@ -722,6 +641,18 @@ mod session_tests {
         let state: SessionState = serde_json::from_str(r#"{"last_page":"home"}"#).unwrap();
         assert_eq!(state.last_page.as_deref(), Some("home"));
         assert_eq!(state.rootlist, None);
+    }
+
+    #[test]
+    fn obsolete_visualizer_window_positions_are_ignored() {
+        let state: SessionState = serde_json::from_str(
+            r#"{"last_page":"home","winamp_pos":[10.0,20.0],"milkdrop_pos":[30.0,40.0]}"#,
+        )
+        .unwrap();
+        assert_eq!(state.last_page.as_deref(), Some("home"));
+        let encoded = serde_json::to_string(&state).unwrap();
+        assert!(!encoded.contains("winamp"));
+        assert!(!encoded.contains("milkdrop"));
     }
 
     #[test]

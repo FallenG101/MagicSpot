@@ -26,6 +26,10 @@ pub type ApiResult<T> = Result<T, ApiError>;
 
 const PREMIUM_NEEDED: &str = "Local playback needs Spotify Premium.";
 pub const PLAYLIST_PAGE_SIZE: u32 = 50;
+/// `Spirc::new` has finished registering when it returns.  Keep a tiny yield
+/// before resuming a dropped session, but do not add a visible pause before
+/// the stream loader starts its work.
+const RESUME_START_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AuthStatus {
@@ -1393,11 +1397,12 @@ impl Worker {
                 let device_id = engine.device_id().to_string();
                 let engine = Arc::new(engine);
                 if let Some(spec) = self.resume.take() {
-                    // Delay resume until Spirc finishes registering. An early
-                    // load can return 400 and leave playback stopped. Verify
-                    // the load and retry if needed.
+                    // Yield briefly so the newly registered Spirc task can
+                    // accept its first command.  `Engine::connect` already
+                    // awaited registration, so the former 1.5-second wait
+                    // only delayed every reconnect.
                     self.resume_verify = Some((spec, 0));
-                    self.schedule_resume_check(1_500);
+                    self.schedule_resume_check(RESUME_START_DELAY);
                 }
                 self.engine = Some(engine);
                 self.reconnects.clear();
@@ -1518,13 +1523,13 @@ impl Worker {
             log::warn!("unable to pick playback up again: {error}");
         }
         self.resume_verify = Some((spec, attempts + 1));
-        self.schedule_resume_check(4_000);
+        self.schedule_resume_check(Duration::from_secs(4));
     }
 
-    fn schedule_resume_check(&self, delay_ms: u64) {
+    fn schedule_resume_check(&self, delay: Duration) {
         let commands = self.commands.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            tokio::time::sleep(delay).await;
             let _ = commands.send(Command::VerifyResume);
         });
     }

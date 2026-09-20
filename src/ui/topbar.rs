@@ -269,22 +269,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                             app.actions
                                 .push(Action::ShowDialog(crate::model::Dialog::Shortcuts));
                         }
-                        if super::widgets::menu_item(
-                            ui,
-                            &palette,
-                            Some(Icon::Shrink),
-                            "Winamp mini player",
-                        ) {
-                            app.actions.push(Action::ToggleWinampWindow);
-                        }
-                        if super::widgets::menu_item(
-                            ui,
-                            &palette,
-                            Some(Icon::AudioLines),
-                            "MilkDrop visualiser",
-                        ) {
-                            app.actions.push(Action::ToggleWinampMilkdrop);
-                        }
                         super::widgets::menu_separator(ui, &palette);
                         if super::widgets::menu_item(ui, &palette, Some(Icon::LogOut), "Sign out") {
                             app.actions.push(Action::SignOut);
@@ -303,42 +287,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .clicked()
                 {
                     app.actions.push(Action::Open(Page::Settings));
-                }
-                if !compact
-                    && theme::icon_button(
-                        ui,
-                        Icon::AudioLines,
-                        19.0,
-                        if app.settings.milkdrop_open {
-                            palette.accent
-                        } else {
-                            palette.secondary
-                        },
-                        palette.text,
-                        super::keys::platform_shortcut(
-                            "MilkDrop visualiser (Ctrl+Shift+K)",
-                            "MilkDrop visualiser (Cmd+Shift+K)",
-                        ),
-                    )
-                    .clicked()
-                {
-                    app.actions.push(Action::ToggleWinampMilkdrop);
-                }
-                if !compact
-                    && theme::icon_button(
-                        ui,
-                        Icon::Shrink,
-                        19.0,
-                        palette.secondary,
-                        palette.text,
-                        super::keys::platform_shortcut(
-                            "Winamp mini player (Ctrl+M)",
-                            "Winamp mini player (Cmd+Shift+M)",
-                        ),
-                    )
-                    .clicked()
-                {
-                    app.actions.push(Action::ToggleWinampWindow);
                 }
                 // A quiet spinner once the app has been talking to Spotify for a
                 // while, long enough that fast requests never flash it.

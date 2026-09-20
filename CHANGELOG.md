@@ -3,7 +3,23 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
-## Unreleased
+## v0.9.99 — 2026-09-19
+
+- Removed the Winamp mini player, skin subsystem, and MilkDrop/projectM
+  visualizer, including their native build dependencies and background audio
+  capture path.
+- Kept older settings and session files readable while dropping obsolete
+  visualizer fields from newly saved files; existing local skin and preset
+  folders are left untouched.
+- Reduced local-playback hot-path work by removing visualization sample
+  buffering, locking, normalization-factor tracking, and shared-memory copies.
+- Simplified appearance, shortcut, top-bar, and build documentation while
+  retaining the standard player, queue, lyrics, and equalizer.
+- Removed the redundant local playback activation request and shortened
+  reconnect resume scheduling to 250 ms.
+- Known issue: local playback can still take roughly 2–3 seconds to begin on
+  some sessions; this release does not claim that underlying streaming delay
+  is resolved.
 
 ## v0.9.91 — 2026-09-15
 

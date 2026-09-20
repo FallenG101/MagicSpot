@@ -5,8 +5,7 @@ MagicSpot pins Rust in `rust-toolchain.toml`. Clone the repository and keep
 
 ## Windows
 
-Install Rust with rustup and the Microsoft C++ Build Tools. A normal release
-does not need Visual Studio, CMake, LLVM, or vcpkg:
+Install Rust with rustup and the Microsoft C++ Build Tools:
 
 ```powershell
 git clone https://github.com/FallenG101/MagicSpot.git
@@ -20,15 +19,14 @@ another Cargo process is using `target`; it is informational and the build
 continues when that process releases the lock.
 
 The result is `target/release/magicspot.exe`. `build.ps1` deliberately uses
-`--no-default-features`, which keeps the ordinary build small and avoids the
-optional MilkDrop native toolchain.
+the default feature set used by normal builds.
 
 ## macOS
 
 Install the Xcode command-line tools and Rust, then run:
 
 ```sh
-cargo build --locked --release --no-default-features
+cargo build --locked --release
 ```
 
 `packaging/macos/bundle.sh` can place a built binary in a MagicSpot application
@@ -41,21 +39,21 @@ Ubuntu:
 
 ```sh
 sudo apt install libasound2-dev libpulse-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev
-cargo build --locked --release --no-default-features
+cargo build --locked --release
 ```
 
 Arch:
 
 ```sh
 sudo pacman -S --needed alsa-lib libpulse libxkbcommon wayland
-cargo build --locked --release --no-default-features
+cargo build --locked --release
 ```
 
 Fedora:
 
 ```sh
 sudo dnf install alsa-lib-devel pulseaudio-libs-devel libxkbcommon-devel wayland-devel
-cargo build --locked --release --no-default-features
+cargo build --locked --release
 ```
 
 The Nix flake provides the pinned development environment and a MagicSpot
@@ -66,19 +64,12 @@ nix develop
 nix build
 ```
 
-## Optional MilkDrop support
-
-Default features include projectM. Building them requires CMake and libclang.
-On Windows, projectM also requires Visual Studio 2022 and vcpkg with
-`VCPKG_INSTALLATION_ROOT` configured. Run `cargo build --locked --release`
-after those dependencies are available.
-
 ## Validation
 
 ```sh
 cargo fmt --all --check
-cargo test --locked --no-default-features --features demo --all-targets
-cargo clippy --locked --no-default-features --features demo --all-targets -- -D warnings
+cargo test --locked --features demo --all-targets
+cargo clippy --locked --features demo --all-targets -- -D warnings
 ```
 
 The **CI** workflow can run those checks on Windows, macOS, and Linux from the

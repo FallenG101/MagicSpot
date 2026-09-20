@@ -13,8 +13,6 @@ backend.
 - When Spotify has no lyrics, MagicSpot can request them from LRCLIB using the
   track title, artist, album, and duration. Lyrics are cached locally.
 - Album art and audio may be cached locally within configured limits.
-- Opening MilkDrop for the first time may download projectM preset packs from
-  GitHub when the preset folder is empty.
 - When update checks are enabled, MagicSpot asks GitHub for the latest
   MagicSpot release at most once per day.
 

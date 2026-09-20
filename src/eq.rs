@@ -1,6 +1,6 @@
 //! Ten-band equalizer for local playback.
 //!
-//! Each Winamp band uses a second-order peaking filter. Bands and preamp range
+//! Each band uses a second-order peaking filter. Bands and preamp range
 //! from -12 to +12 dB. The UI writes settings behind a mutex; the player reads
 //! them once per packet and rebuilds filters only after changes.
 //!
@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use librespot_playback::{NUM_CHANNELS, SAMPLE_RATE};
 
-/// The centre frequencies, Winamp's, in hertz.
+/// The equalizer center frequencies, in hertz.
 pub const BANDS: [f32; 10] = [
     60.0, 170.0, 310.0, 600.0, 1000.0, 3000.0, 6000.0, 12000.0, 14000.0, 16000.0,
 ];
@@ -100,7 +100,7 @@ impl Curve {
 ///
 /// The bands are unevenly spaced. A shared width makes the high bands overlap
 /// and overboost presets such as Full Treble. The outer bands extend three
-/// octaves below 60 Hz and one octave above 16 kHz, matching Winamp.
+/// octaves below 60 Hz and one octave above 16 kHz.
 fn band_widths() -> [f64; 10] {
     let octaves: Vec<f64> = BANDS.iter().map(|hz| f64::from(*hz).log2()).collect();
     let mut widths = [0.0; 10];
@@ -213,18 +213,14 @@ fn solve(mut matrix: [[f64; 10]; 10], mut rhs: [f64; 10]) -> [f64; 10] {
     solution
 }
 
-/// A named set of band gains, as Winamp shipped them.
+/// A named set of band gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Preset {
     pub name: &'static str,
     pub bands_db: [f32; 10],
 }
 
-/// Winamp's presets, in its order.
-/// How many of `PRESETS` are Winamp's own, in its order; what follows
-/// are scenario presets of this app's, shown behind a separator.
-pub const WINAMP_PRESET_COUNT: usize = 18;
-
+/// Built-in presets.
 pub const PRESETS: &[Preset] = &[
     Preset {
         name: "Flat",

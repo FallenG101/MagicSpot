@@ -34,7 +34,7 @@ use librespot_playback::{
 use sha1::{Digest, Sha1};
 
 use crate::sink::{AudioControl, ErrorHook, RodioSink};
-use crate::vis::{AudioTap, Tapped};
+use crate::vis::Processed;
 
 #[derive(Clone, Debug)]
 pub struct EngineConfig {
@@ -52,7 +52,6 @@ pub struct EngineConfig {
     pub audio_cache_limit: Option<u64>,
     /// Output buffer length in milliseconds.
     pub buffer_ms: u32,
-    pub tap: Arc<AudioTap>,
     /// The equalizer's settings, shared with the window that sets them.
     pub eq: crate::eq::SharedEq,
 }
@@ -288,17 +287,12 @@ impl Engine {
             autoplay: Some(config.autoplay),
             ..SessionConfig::default()
         };
-        let normalisation_factor = Arc::new(std::sync::atomic::AtomicU64::new(1.0f64.to_bits()));
         let player_config = PlayerConfig {
             bitrate: config.bitrate(),
             gapless: config.gapless,
             normalisation: config.normalisation,
             normalisation_type: NormalisationType::Auto,
             position_update_interval: Some(Duration::from_secs(1)),
-            // The fork reports each track's normalisation factor here, so
-            // the tap can undo it for the visualisers: they show the music,
-            // not the loudness housekeeping.
-            normalisation_report: Some(Arc::clone(&normalisation_factor)),
             ..PlayerConfig::default()
         };
 
@@ -325,7 +319,6 @@ impl Engine {
             Arc::clone(&state),
             Arc::clone(&notify),
             &mixer,
-            Arc::clone(&normalisation_factor),
             Arc::clone(&audio),
         );
         let player = Player::new(player_config, session.clone(), volume, sink_builder);
@@ -567,7 +560,12 @@ impl Engine {
                 } else {
                     anyhow::bail!("nothing to play");
                 };
-                spirc.activate()?;
+                // `Spirc::load` activates URI contexts itself.  Direct-track
+                // contexts are already active after `Spirc::new`; sending a
+                // separate activation first publishes an empty context and
+                // Spotify can reject it with 400.  Apart from wasted work,
+                // that leaves a freshly reconnected player waiting for its
+                // resume retry before audio can start.
                 spirc.load(request)?;
             }
         }
@@ -598,12 +596,10 @@ fn sink_builder(
     state: Arc<Mutex<LocalState>>,
     notify: Notify,
     mixer: &Arc<dyn Mixer>,
-    normalisation: Arc<std::sync::atomic::AtomicU64>,
     audio: Arc<AudioControl>,
 ) -> SinkAndVolume {
     let device = config.audio_device.clone();
     let buffer_ms = config.buffer_ms;
-    let tap = Arc::clone(&config.tap);
     let eq = Arc::clone(&config.eq);
     let report: ErrorHook = Arc::new(move |message: String| {
         let snapshot = {
@@ -620,15 +616,11 @@ fn sink_builder(
     {
         match audio_backend::find(Some(name.to_string())) {
             Some(builder) => {
-                // Apply volume after the tap so visualizers are independent of
-                // volume, including at zero.
                 let applied = mixer.get_soft_volume();
-                let normalisation = Arc::clone(&normalisation);
                 return (
                     Box::new(move || {
                         let sink = builder(device, AudioFormat::S16);
-                        Box::new(Tapped::new(sink, tap, applied, true, eq, normalisation))
-                            as Box<dyn Sink>
+                        Box::new(Processed::new(sink, applied, true, eq)) as Box<dyn Sink>
                     }),
                     Box::new(NoOpVolume),
                 );
@@ -643,7 +635,7 @@ fn sink_builder(
     (
         Box::new(move || {
             let sink = Box::new(RodioSink::new(device, report, volume, buffer_ms, audio));
-            Box::new(Tapped::new(sink, tap, ceiling, false, eq, normalisation)) as Box<dyn Sink>
+            Box::new(Processed::new(sink, ceiling, false, eq)) as Box<dyn Sink>
         }),
         Box::new(NoOpVolume),
     )
@@ -1152,7 +1144,6 @@ mod tests {
     fn device_id_is_stable_hex() {
         let config = EngineConfig {
             buffer_ms: crate::sink::DEFAULT_BUFFER_MS,
-            tap: AudioTap::new(),
             eq: crate::eq::shared(),
             device_name: "MagicSpot".into(),
             bitrate_kbps: 320,

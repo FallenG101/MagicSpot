@@ -11,8 +11,6 @@ pub(super) const fn platform_shortcut(ctrl: &'static str, cmd: &'static str) -> 
 
 pub(super) const SIDEBAR_SHORTCUT: &str = platform_shortcut("Ctrl+B", "Cmd+B");
 pub(super) const QUIT_SHORTCUT: &str = platform_shortcut("Ctrl+Q", "Cmd+Q");
-pub(super) const WINAMP_SHORTCUT: &str = platform_shortcut("Ctrl+M", "Cmd+Shift+M");
-pub(super) const MILKDROP_SHORTCUT: &str = platform_shortcut("Ctrl+Shift+K", "Cmd+Shift+K");
 
 pub fn handle(app: &mut App, ctx: &egui::Context) {
     let typing = ctx.memory(|memory| memory.focused().is_some());
@@ -43,22 +41,6 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             key(Modifiers::COMMAND, Key::H, Action::Open(Page::Home));
         }
         key(Modifiers::COMMAND, Key::L, Action::Open(Page::LikedSongs));
-        // Cmd+M minimises on macOS.
-        if cfg!(target_os = "macos") {
-            key(
-                Modifiers::COMMAND | Modifiers::SHIFT,
-                Key::M,
-                Action::ToggleWinampWindow,
-            );
-        } else {
-            key(Modifiers::COMMAND, Key::M, Action::ToggleWinampWindow);
-        }
-        // Winamp's key for starting and stopping the visualisation plug-in.
-        key(
-            Modifiers::COMMAND | Modifiers::SHIFT,
-            Key::K,
-            Action::ToggleWinampMilkdrop,
-        );
         key(
             Modifiers::COMMAND,
             Key::Slash,
@@ -198,13 +180,6 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
         platform_shortcut("Ctrl+Shift+B", "Cmd+Shift+B"),
         "Go to the playing album",
     ),
-    (WINAMP_SHORTCUT, "Winamp mini player"),
-    (MILKDROP_SHORTCUT, "MilkDrop, under the mini player"),
-    ("F  or  double-click", "MilkDrop: fill the screen"),
-    ("→  /  N", "MilkDrop: next preset"),
-    ("←  /  P", "MilkDrop: previous preset"),
-    ("L", "MilkDrop: keep this preset"),
-    ("Esc", "MilkDrop: leave full screen, or close"),
     (platform_shortcut("Ctrl+,", "Cmd+,"), "Settings"),
     (
         platform_shortcut("Ctrl+/ or ?", "Cmd+/ or ?"),
@@ -224,19 +199,11 @@ mod tests {
     #[test]
     fn shortcut_constants_name_the_platform_modifier() {
         let expected = if cfg!(target_os = "macos") {
-            ["Cmd+B", "Cmd+Q", "Cmd+Shift+M", "Cmd+Shift+K"]
+            ["Cmd+B", "Cmd+Q"]
         } else {
-            ["Ctrl+B", "Ctrl+Q", "Ctrl+M", "Ctrl+Shift+K"]
+            ["Ctrl+B", "Ctrl+Q"]
         };
-        assert_eq!(
-            [
-                SIDEBAR_SHORTCUT,
-                QUIT_SHORTCUT,
-                WINAMP_SHORTCUT,
-                MILKDROP_SHORTCUT,
-            ],
-            expected
-        );
+        assert_eq!([SIDEBAR_SHORTCUT, QUIT_SHORTCUT,], expected);
     }
 
     #[test]
@@ -262,10 +229,8 @@ mod tests {
         };
         if cfg!(target_os = "macos") {
             assert_eq!(label("Home"), "Cmd+Shift+H");
-            assert_eq!(label("Winamp mini player"), "Cmd+Shift+M");
         } else {
             assert_eq!(label("Home"), "Ctrl+H");
-            assert_eq!(label("Winamp mini player"), "Ctrl+M");
         }
     }
 

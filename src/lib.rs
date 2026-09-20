@@ -1,5 +1,12 @@
 //! MagicSpot's internals, exposed so diagnostics and tests can reach them.
 
+/// User-facing app name. Local builds may override this without changing the
+/// packaged product identity used by GitHub releases.
+pub const DISPLAY_NAME: &str = match option_env!("MAGICSPOT_DISPLAY_NAME") {
+    Some(name) => name,
+    None => "MagicSpot",
+};
+
 pub mod api;
 pub mod app;
 pub mod auth;
@@ -26,7 +33,6 @@ pub mod media_controls;
 #[cfg(not(target_os = "linux"))]
 #[path = "media_native.rs"]
 pub mod media_controls;
-pub mod milkdrop;
 pub mod model;
 pub mod opener;
 pub mod paths;
@@ -35,7 +41,6 @@ pub mod resample;
 pub mod settings;
 pub mod single_instance;
 pub mod sink;
-pub mod skin;
 pub mod system_fonts;
 pub mod theme;
 #[cfg(target_os = "linux")]
@@ -47,6 +52,5 @@ pub mod ui;
 pub mod updates;
 pub mod util;
 pub mod vis;
-pub mod winamp;
 pub mod window;
 pub mod zeroconf;

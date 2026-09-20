@@ -275,15 +275,6 @@ fn format_devices(snapshot: &str) -> String {
 }
 
 fn main() -> eframe::Result<()> {
-    // A MilkDrop child launch is a bare visualiser window, not the app: it has
-    // its own event loop and OpenGL context, reads the sound from a shared
-    // buffer, and never touches the app's state. Handle it before anything
-    // else, including the argument parser, which does not know its flags.
-    #[cfg(feature = "milkdrop")]
-    if let Some(args) = magicspot::milkdrop::child::Args::parse() {
-        std::process::exit(magicspot::milkdrop::child::run(args));
-    }
-
     let cli = Cli::parse();
     // A control launch is a client, not a second app: talk to the running
     // instance and exit before touching the log file it is writing to.
@@ -404,19 +395,10 @@ fn main() -> eframe::Result<()> {
         let creator_waker = waker.clone();
         #[cfg(feature = "demo")]
         let creator_shot = shot.clone();
-        let mini = {
-            let guard = slot.lock().unwrap_or_else(|p| p.into_inner());
-            MiniWindow::wanted(guard.as_ref().expect("application state present"))
-        };
-        let mini_window = mini.is_some();
         #[cfg(feature = "demo")]
-        let options = native_options(
-            shot.is_some() && mini.is_none() && demo_inner.is_none(),
-            mini,
-            demo_inner,
-        );
+        let options = native_options(shot.is_some() && demo_inner.is_none(), demo_inner);
         #[cfg(not(feature = "demo"))]
-        let options = native_options(false, mini, None);
+        let options = native_options(false, None);
         eframe::run_native(
             "MagicSpot",
             options,
@@ -440,7 +422,6 @@ fn main() -> eframe::Result<()> {
                 Ok(Box::new(Shell {
                     app: Some(app),
                     slot: std::sync::Arc::clone(&creator_slot),
-                    mini_window,
                     #[cfg(feature = "demo")]
                     shot: creator_shot.clone(),
                 }))
@@ -448,18 +429,11 @@ fn main() -> eframe::Result<()> {
         )?;
         waker.detach();
 
-        let (switch, hide) = {
+        let hide = {
             let guard = slot.lock().unwrap_or_else(|p| p.into_inner());
             let app = guard.as_ref().expect("application state present");
-            (
-                !app.quit_requested && app.switch_intent,
-                !app.quit_requested && app.hide_intent,
-            )
+            !app.quit_requested && app.hide_intent
         };
-        if switch {
-            // Straight back round: the other kind of window opens.
-            continue;
-        }
         if !hide {
             break;
         }
@@ -543,26 +517,6 @@ fn log_panics(path: std::path::PathBuf) {
     }));
 }
 
-/// The Winamp mini player's window, when that is the window to open.
-struct MiniWindow {
-    /// A first size; the window corrects it once it knows the display.
-    size: egui::Vec2,
-    position: Option<[f32; 2]>,
-    on_top: bool,
-    storage_path: std::path::PathBuf,
-}
-
-impl MiniWindow {
-    fn wanted(app: &app::App) -> Option<Self> {
-        app.settings.winamp_window.then(|| Self {
-            size: magicspot::ui::winamp::initial_size(&app.settings),
-            position: app.winamp.restore_pos,
-            on_top: app.settings.winamp_on_top,
-            storage_path: app.dirs.cache.join("winamp.ron"),
-        })
-    }
-}
-
 const fn main_window_decorated(on_windows: bool) -> bool {
     !on_windows
 }
@@ -586,29 +540,14 @@ fn parse_demo_size(spec: &str) -> Result<[f32; 2], String> {
     Ok([width, height])
 }
 
-fn native_options(
-    fullscreen: bool,
-    mini: Option<MiniWindow>,
-    inner_size: Option<[f32; 2]>,
-) -> eframe::NativeOptions {
-    // The app keeps the mini player's position and shaded size separately.
-    // Its closing window must not replace the main window's eframe geometry.
+fn native_options(fullscreen: bool, inner_size: Option<[f32; 2]>) -> eframe::NativeOptions {
     // A fixed demo capture also gets an isolated persistence path: disabling
     // saving alone does not stop eframe from restoring the ordinary window.
     let fixed_demo = inner_size.is_some();
-    let persist_window = mini.is_none() && !fixed_demo;
-    // Disabling saving does not disable eframe's startup restore. Give the
-    // mini player its own path, and Shell disables its egui-memory saving too,
-    // so it neither reads the main window's geometry nor creates a state file.
-    let persistence_path = mini
-        .as_ref()
-        .map(|mini| mini.storage_path.clone())
-        .or_else(|| {
-            fixed_demo.then(|| {
-                std::env::temp_dir()
-                    .join(format!("magicspot-demo-window-{}.ron", std::process::id()))
-            })
-        });
+    let persist_window = !fixed_demo;
+    let persistence_path = fixed_demo.then(|| {
+        std::env::temp_dir().join(format!("magicspot-demo-window-{}.ron", std::process::id()))
+    });
     let icon = if cfg!(target_os = "macos") {
         // macOS takes the dock icon from the bundle's .icns, which is the
         // 1024px drawing with the platform's rounding. Setting a window
@@ -618,51 +557,28 @@ fn native_options(
         app_icon()
     };
     let viewport = egui::ViewportBuilder::default()
-        .with_title("MagicSpot")
+        .with_title(magicspot::DISPLAY_NAME)
         .with_app_id("magicspot")
         .with_icon(icon);
-    let viewport = match mini {
-        Some(mini) => {
-            let level = app::on_top_window_level(mini.on_top);
-            // See-through, for skins that are not rectangles; the skin
-            // paints every pixel that is the window. MilkDrop runs in its own
-            // process, so nothing else shares this window's surface.
-            let viewport = viewport
-                .with_decorations(false)
-                .with_transparent(true)
-                .with_resizable(false)
-                .with_maximize_button(false)
-                .with_inner_size(mini.size)
-                .with_min_inner_size(mini.size)
-                .with_max_inner_size(mini.size)
-                .with_window_level(level);
-            match mini.position {
-                Some([x, y]) => viewport.with_position([x, y]),
-                None => viewport,
-            }
-        }
-        None => {
-            let size = inner_size.unwrap_or([1240.0, 800.0]);
-            let mut viewport = viewport
-                // macOS: no title bar strip above the app. The content runs to
-                // the top edge and the traffic lights float over it, the way
-                // every other music player on the platform looks; the interface
-                // leaves room for them with `theme::titlebar_inset`.
-                .with_fullsize_content_view(true)
-                .with_titlebar_shown(false)
-                .with_title_shown(false)
-                // Windows has no equivalent to macOS's floating traffic lights.
-                // Removing its decorations lets the app surface fill the window.
-                .with_decorations(main_window_decorated(cfg!(windows)))
-                .with_inner_size(size)
-                .with_min_inner_size(inner_size.unwrap_or([760.0, 520.0]))
-                .with_fullscreen(fullscreen);
-            if inner_size.is_some() {
-                viewport = viewport.with_max_inner_size(size);
-            }
-            viewport
-        }
-    };
+    let size = inner_size.unwrap_or([1240.0, 800.0]);
+    let mut viewport = viewport
+        // macOS: no title bar strip above the app. The content runs to
+        // the top edge and the traffic lights float over it, the way
+        // every other music player on the platform looks; the interface
+        // leaves room for them with `theme::titlebar_inset`.
+        .with_fullsize_content_view(true)
+        .with_titlebar_shown(false)
+        .with_title_shown(false)
+        // Windows has no equivalent to macOS's floating traffic lights.
+        // Removing its decorations lets the app surface fill the window.
+        .with_decorations(main_window_decorated(cfg!(windows)))
+        .with_inner_size(size)
+        .with_min_inner_size(inner_size.unwrap_or([760.0, 520.0]))
+        .with_fullscreen(fullscreen);
+    if inner_size.is_some() {
+        viewport = viewport.with_max_inner_size(size);
+    }
+
     eframe::NativeOptions {
         viewport,
         persist_window,
@@ -684,37 +600,12 @@ mod native_window_tests {
 
     #[test]
     fn only_the_main_window_persists_framework_geometry() {
-        assert!(native_options(false, None, None).persist_window);
-        for shaded in [false, true] {
-            let settings = settings::Settings {
-                winamp_shaded: shaded,
-                skin_scale: Some(2),
-                ..Default::default()
-            };
-            let size = magicspot::ui::winamp::initial_size(&settings);
-            let options = native_options(
-                false,
-                Some(MiniWindow {
-                    size,
-                    position: Some([300.0, 200.0]),
-                    on_top: false,
-                    storage_path: std::path::PathBuf::from("cache/winamp.ron"),
-                }),
-                None,
-            );
-            assert!(
-                !options.persist_window,
-                "mini geometry must not overwrite main"
-            );
-            assert_eq!(options.viewport.inner_size, Some(size));
-            assert_eq!(options.viewport.position, Some(egui::pos2(300.0, 200.0)));
-            assert!(options.persistence_path.is_some());
-        }
+        assert!(native_options(false, None).persist_window);
     }
 
     #[test]
     fn main_window_uses_the_platform_decoration_policy() {
-        let options = native_options(false, None, None);
+        let options = native_options(false, None);
         assert_eq!(options.viewport.decorations, Some(!cfg!(windows)));
         assert_eq!(options.viewport.fullsize_content_view, Some(true));
         assert_eq!(options.viewport.titlebar_shown, Some(false));
@@ -725,7 +616,7 @@ mod native_window_tests {
     fn demo_size_parses_width_by_height() {
         assert_eq!(parse_demo_size("760x800").unwrap(), [760.0, 800.0]);
         assert!(parse_demo_size("wide").is_err());
-        let options = native_options(false, None, Some([760.0, 800.0]));
+        let options = native_options(false, Some([760.0, 800.0]));
         assert_eq!(options.viewport.inner_size, Some(egui::vec2(760.0, 800.0)));
         assert_eq!(
             options.viewport.min_inner_size,
@@ -751,8 +642,6 @@ mod native_window_tests {
 struct Shell {
     app: Option<app::App>,
     slot: std::sync::Arc<std::sync::Mutex<Option<app::App>>>,
-    /// The mode this window opened in, even after an action switches modes.
-    mini_window: bool,
     /// A pending `--demo-shot` capture, if this is a screenshot run.
     #[cfg(feature = "demo")]
     shot: Option<Shot>,
@@ -816,10 +705,6 @@ impl Shell {
 }
 
 impl eframe::App for Shell {
-    fn persist_egui_memory(&self) -> bool {
-        !self.mini_window
-    }
-
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Some(app) = self.app.as_mut() {
             #[cfg(target_os = "macos")]
@@ -894,18 +779,8 @@ impl eframe::App for Shell {
         }
     }
 
-    /// The mini player's window is see-through where the skin leaves it
-    /// out; the big window paints itself over eframe's own ground.
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if self
-            .app
-            .as_ref()
-            .is_some_and(|app| app.settings.winamp_window)
-        {
-            [0.0; 4]
-        } else {
-            egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
-        }
+        egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

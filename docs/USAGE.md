@@ -76,7 +76,6 @@ the bar is compact.
 | `L` | Toggle lyrics |
 | `Ctrl+F` or `/` | Search |
 | `Ctrl+B` | Toggle the library sidebar |
-| `Ctrl+M` | Toggle the Winamp mini player |
 | `Ctrl+,` | Settings |
 | `Ctrl+/` or `?` | All shortcuts |
 | `Ctrl+Q` | Quit |

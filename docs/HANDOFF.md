@@ -146,8 +146,6 @@ The main UI files are `src/ui/mod.rs`, `src/ui/topbar.rs`,
 
 ## Build and validation
 
-The ordinary distributable deliberately excludes optional MilkDrop support:
-
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build.ps1 -Release
 ```
@@ -156,27 +154,25 @@ The result on Windows is `target/release/magicspot.exe`. The equivalent direct
 command on every platform is:
 
 ```sh
-cargo build --locked --release --no-default-features
+cargo build --locked --release
 ```
 
 Run these before committing code:
 
 ```sh
 cargo fmt --all --check
-cargo test --locked --no-default-features --features demo --all-targets
-cargo clippy --locked --no-default-features --features demo --all-targets -- -D warnings
+cargo test --locked --features demo --all-targets
+cargo clippy --locked --features demo --all-targets -- -D warnings
 ```
 
 On this Windows workstation Cargo may need the explicit path
-`C:\Users\Grant\.cargo\bin\cargo.exe`. Default features include projectM and
-need CMake, libclang, Visual Studio 2022, and vcpkg on Windows. Do not interpret
-a missing `VCPKG_INSTALLATION_ROOT` as a failure of the standard lightweight
-build.
+`C:\Users\Grant\.cargo\bin\cargo.exe`. A normal build has no projectM native
+toolchain and does not need CMake, libclang, or vcpkg.
 
 For a deterministic UI image:
 
 ```powershell
-cargo run --locked --no-default-features --features demo -- `
+cargo run --locked --features demo -- `
   --demo-shot target\magicspot-demo.png `
   --demo-shot-delay 1200 `
   --demo-size 1400x900 `

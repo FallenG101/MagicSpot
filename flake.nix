@@ -46,10 +46,6 @@
               (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
               rust-analyzer
               pkg-config
-              # libprojectM (MilkDrop) is built from source by CMake, and its
-              # bindings by bindgen, which needs libclang.
-              cmake
-              rustPlatform.bindgenHook
             ]
             ++ lib.optionals stdenv.hostPlatform.isDarwin [
               apple-sdk
@@ -93,13 +89,6 @@
                 cargo = toolchain;
                 rustc = toolchain;
               };
-              cmakeWithLibdir = pkgs.writeShellScript "cmake-magicspot" ''
-                if [[ "$1" == "--build" ]]; then
-                  exec ${pkgs.cmake}/bin/cmake "$@"
-                else
-                  exec ${pkgs.cmake}/bin/cmake "$@" -DCMAKE_INSTALL_LIBDIR=lib
-                fi
-              '';
               runtimeLibs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (
                 with pkgs;
                 [
@@ -131,10 +120,6 @@
                 with pkgs;
                 [
                   pkg-config
-                  # libprojectM (MilkDrop) is built from source by CMake, and
-                  # its bindings by bindgen, which needs libclang.
-                  cmake
-                  rustPlatform.bindgenHook
                 ]
                 ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ makeWrapper ];
               buildInputs =
@@ -143,17 +128,11 @@
                   [
                     alsa-lib
                     libpulseaudio
-                    # libprojectM links OpenGL directly and its GL loader needs
-                    # X11 headers while it is built.
                     libGL
                     libx11
                   ]
                 )
                 ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.apple-sdk ];
-
-              # projectm-sys expects CMake to install into lib/, while CMake
-              # defaults to lib64/ on NixOS.
-              env.CMAKE = "${cmakeWithLibdir}";
 
               # The GUI dlopens its Wayland, X11 and GL libraries at run time.
               postFixup = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''

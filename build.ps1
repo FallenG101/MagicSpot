@@ -12,7 +12,7 @@ if (-not $cargoExe) {
     throw 'Rust is required. Install it from https://rustup.rs first.'
 }
 
-$buildArguments = @('build', '--locked', '--no-default-features')
+$buildArguments = @('build', '--locked')
 if ($Release) { $buildArguments += '--release' }
 if ($Demo) { $buildArguments += @('--features', 'demo') }
 
