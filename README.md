@@ -14,27 +14,35 @@ release direction.
 
 ## Current status
 
-MagicSpot is an early personal project. Spotify Premium is required for local
-playback through librespot. MagicSpot is not affiliated with or endorsed by
-Spotify.
+MagicSpot 1.0.0 is the current milestone release. It remains an early
+personal project, and Spotify Premium is required for local playback through
+librespot. MagicSpot is not affiliated with or endorsed by Spotify.
+
+Some sessions may still take a few seconds to start local audio or resume
+after a skip while the shared librespot playback path fills its decoder. This
+is a known limitation of the current release, not a claim that the Spotify Web
+API Client ID or the user interface controls that delay.
 
 ## What is different
 
 - A redesigned desktop shell with a full-height library rail, top navigation,
   inset content canvas, and contained player bar.
+- Guided Spotify Web API sign-in, separate local playback authorization,
+  device-transfer progress, and connection diagnostics.
 - Rounded, responsive playlist and album headers with prominent artwork and
   cleaner narrow-window actions.
 - A structured queue with local reorder/removal controls, current-context
   separation, recent history, and save-as-playlist support.
 - Responsive navigation with compact search, destination-aware history, mouse
   Back/Forward support, and stable access to utilities at narrow widths.
-- A resizable lyrics panel with a large album card and no separate expand mode.
+- A resizable lyrics panel with an artwork-backed track header and no separate
+  full-screen lyrics mode.
 - Adjustable lyric size, spacing, alignment, Inter/Manrope/Lora font, subtle
   glow, and blurred album-art backdrop, plus optional word-by-word highlighting
   marked **Beta** and disabled by default.
 - Light, Dark, Follow System, and OLED appearances.
-- Circular Aqua, Violet, Rose, Amber, and Neutral Gray accent swatches. Neutral
-  Gray and OLED support album-art color while keeping their darker surfaces.
+- Circular Blue, Red, Green, Yellow, White, Purple, and Cyan accent swatches,
+  plus OLED and saved custom palettes with optional album-art color.
 - Independent MagicSpot executable, application IDs, data directories, icons,
   installers, and command protocol.
 
@@ -77,7 +85,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1 -Release
 
 The executable is written to `target/release/magicspot.exe`. Visual Studio is
 not required; VSCodium works well as the editor. Omit `-Release` for a debug
-build or add `-Demo` for offline sample data.
+build or add `-Demo` to compile the offline demo and screenshot support.
 
 ## Build on macOS or Linux
 
@@ -109,7 +117,10 @@ external commands, and stored data. [Privacy and network access](docs/PRIVACY.md
 documents every service the application contacts.
 
 MagicSpot can check GitHub for a newer release and open its download page. It
-does not currently replace or install the application automatically.
+does not currently replace or install the application automatically. Run
+`magicspot --verbose` when diagnosing sign-in, device, or local playback
+startup; the log includes additional Web API, librespot, and playback-timing
+details but never credentials.
 
 ## Features
 
@@ -152,8 +163,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md). The main local checks are:
 
 ```sh
 cargo fmt --all --check
-cargo test --locked --no-default-features --features demo --all-targets
-cargo clippy --locked --no-default-features --features demo --all-targets -- -D warnings
+cargo test --locked --features demo --all-targets
+cargo clippy --locked --features demo --all-targets -- -D warnings
 ```
 
 Maintainers and coding agents should also read the current

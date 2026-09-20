@@ -3,6 +3,22 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
+## v1.0.0 — 2026-09-20
+
+- Hardened the separate local playback authorization flow so streaming
+  credentials are bound to the verified Spotify account and late browser
+  callbacks cannot start playback after sign-out.
+- Updated the pinned librespot fork with bounded connection setup and DNS
+  address fallback, and added playback timing diagnostics for track loading,
+  decoder startup, output opening, and the first queued audio.
+- Corrected confirmed-seek handling in the audio sink while preserving the
+  gapless track-boundary path.
+- Updated the Settings fork acknowledgement to Spotifast.
+- Known limitation: some sessions can still take roughly 2–3 seconds to start
+  local audio or resume after a skip while the shared playback path fills its
+  decoder. The release does not claim that underlying streaming delay is fully
+  resolved.
+
 ## v0.9.99 — 2026-09-19
 
 - Removed the Winamp mini player, skin subsystem, and MilkDrop/projectM

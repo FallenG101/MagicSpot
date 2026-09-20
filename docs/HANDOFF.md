@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-15. This is the starting point for a new maintainer, coding
+Updated 2026-09-20. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -9,12 +9,14 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v0.9.91**. It simplifies the built-in accent
-  colors, supports applying saved custom themes directly from Settings, and
-  fixes switching between OLED and custom themes.
-- The v0.9.91 release was validated with formatting and the complete
-  demo-feature test suite (370 library tests and 5 binary tests). The preceding
-  v0.9.9 release also passed strict Clippy and the lightweight release build.
+- The latest user release is **v1.0.0**. It hardens playback authorization,
+  updates the pinned librespot fork's connection setup, adds playback timing
+  diagnostics, and fixes confirmed-seek sink handling while preserving
+  gapless track boundaries.
+- The v1.0.0 release was validated with formatting, the complete demo-feature
+  test suite (294 library tests and 5 binary tests), strict Clippy, and a
+  normal release build. Windows and macOS packaging are manual GitHub Actions
+  jobs and publish assets to the existing tag.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -132,6 +134,9 @@ The main UI files are `src/ui/mod.rs`, `src/ui/topbar.rs`,
   routing.
 - `src/player.rs`, `src/sink.rs`, `src/resample.rs`, `src/eq.rs`, and
   `src/limiter.rs` implement local playback and audio processing.
+- `src/playback_timing.rs` records low-overhead local playback milestones for
+  verbose diagnostics; it must remain off the UI thread and must not record
+  credentials.
 - True crossfade is not implemented. The current librespot fork exposes one
   decoder stream and gives its sink no track-boundary callback during gapless
   playback. Crossfade requires a coordinated player change that overlaps two
@@ -180,9 +185,11 @@ cargo run --locked --features demo -- `
 ```
 
 Useful `--demo-show` values include `lyrics`, `lyrics-expanded`, `lyrics-beta`,
-`lyrics-center`, `lyrics-glow`, `lyrics-lora`, `queue`, `devices`, `light`,
-`neutral`, and `oled`. Allow follow-scroll animations to settle before judging
-a screenshot.
+`lyrics-center`, `lyrics-glow`, `lyrics-lora`, `queue`, `playing-next`,
+`local-queue`, `recents`, `devices`, `shortcuts`, `premium`, `create`,
+`duplicate`, `light`, `focus`, `resume`, `resume-next`, `eq`, `art`, `folders`,
+`compact`, `pins`, `sorted`, `neutral`, `oled`, and `scripts`. Allow
+follow-scroll animations to settle before judging a screenshot.
 
 ## Authentication and updates
 
@@ -199,6 +206,11 @@ authorized users, and counts development quota per developer account.
 MagicSpot has a release checker, not an installer updater. Checks default to
 off; when enabled they query GitHub at most once per day and open the release
 page for a newer version.
+
+The current release can still show a roughly 2–3 second local playback startup
+or skip delay on some sessions. Use `magicspot --verbose` and the
+`magicspot::playback_timing` log entries to distinguish track loading, output
+opening, decoder startup, and audio-queue starvation when investigating it.
 
 ## Release runbook
 
@@ -250,8 +262,11 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Exercise the v0.9.91 connection and custom theme flows across varied real
-  Spotify accounts and devices, then fold fixes into the road to 1.0.
+- Exercise the v1.0.0 connection, playback authorization, custom theme, and
+  local playback flows across varied real Spotify accounts and devices.
+- Continue profiling the remaining local playback startup and skip delay in
+  the shared librespot/Fastpotify playback path, especially decoder buffering,
+  preloading, and reconnect behavior.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
 - Favor account-synced Spotify features over local-only library organization or
@@ -262,5 +277,5 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The requested v0.9.91 feature implementation and local validation are complete.
-Continue stabilization toward 1.0 from user feedback and real-account testing.
+The requested v1.0.0 implementation and local validation are complete.
+Continue stabilization from user feedback and real-account testing.

@@ -22,8 +22,10 @@ area above it.
 
 Choose Light, Dark, Follow System, or OLED at the top of Appearance settings.
 Then choose a circular Blue, Red, Green, Yellow, White, Purple, or Cyan accent;
-hover a swatch to see its name. OLED remains available as the final appearance
-choice. Disable **Color from album art** for a stable accent.
+hover a swatch to see its name. OLED is the final appearance choice. Disable
+**Color from album art** for a stable accent. Saved custom palettes appear in
+the same section and take precedence over the built-in accent until another
+palette is selected.
 
 Choose a saved custom theme directly in Appearance settings, or select **Open
 editor** to preview accent, surface, panel, and text colors across the live
@@ -61,6 +63,13 @@ Previous/Play/Next, and a bottom seek line. Shuffle, repeat, lyrics, queue,
 device, and volume buttons return when the window is wide enough. Keyboard
 shortcuts continue to cover shuffle, repeat, lyrics, queue, and volume while
 the bar is compact.
+
+Playback settings include 96, 160, and 320 kbps quality, normalization,
+autoplay, gapless playback, and a local audio cache. On Windows, the output
+buffer offers 50, 100, and 200 ms; on Linux, the output can use ALSA or
+PulseAudio/PipeWire. These settings apply after selecting **Apply and restart
+playback**. The equalizer, balance, and mono controls affect playback on this
+computer only.
 
 ## Common shortcuts
 
@@ -130,6 +139,12 @@ The Account section walks through app creation, the exact redirect URI, and
 Client ID entry. Open **Connection diagnostics** there or from the account menu
 to inspect and retry sign-in, local playback authorization, device discovery,
 and playback transfer. Its copyable support report excludes credentials.
+
+For deeper troubleshooting, start MagicSpot with `--verbose`. This enables
+additional Web API and librespot logging, including playback-timing milestones
+for track loading, output opening, and the first queued audio. Some sessions
+may still take a few seconds to start or resume local audio; a personal Client
+ID changes Web API routing and quota, not the underlying audio stream.
 
 Update checks are disabled by default. When enabled, MagicSpot checks GitHub at
 most once per day and offers the release page when a newer version exists. The

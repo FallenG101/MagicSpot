@@ -8,8 +8,8 @@ Before opening a pull request, run:
 
 ```sh
 cargo fmt --all --check
-cargo test --locked --no-default-features --features demo --all-targets
-cargo clippy --locked --no-default-features --features demo --all-targets -- -D warnings
+cargo test --locked --features demo --all-targets
+cargo clippy --locked --features demo --all-targets -- -D warnings
 ```
 
 Keep changes focused and explain their user-visible effect. Do not include

@@ -410,12 +410,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
             },
         );
-        theme::text(
-            ui,
-            "MagicSpot updates are not configured. Rebuild from local source.",
-            theme::regular(13.0),
-            palette.secondary,
-        );
         if cfg!(target_os = "linux") {
             widgets::setting_row(
                 ui,

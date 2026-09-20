@@ -38,8 +38,9 @@ struct Cli {
     #[arg(long)]
     demo_page: Option<String>,
 
-    /// Extra demo surfaces: a comma-separated list of `queue`, `playing-next`,
-    /// `devices`, `shortcuts`, `create`, `light`, `focus`.
+    /// Extra demo surfaces, such as `lyrics`, `queue`, `playing-next`,
+    /// `devices`, `shortcuts`, `create`, `light`, `focus`, `resume`, `eq`,
+    /// `folders`, `neutral`, or `oled`.
     #[cfg(feature = "demo")]
     #[arg(long)]
     demo_show: Option<String>,
