@@ -9,12 +9,12 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v1.0.0**. It hardens playback authorization,
-  updates the pinned librespot fork's connection setup, adds playback timing
-  diagnostics, and fixes confirmed-seek sink handling while preserving
-  gapless track boundaries.
-- The v1.0.0 release was validated with formatting, the complete demo-feature
-  test suite (294 library tests and 5 binary tests), strict Clippy, and a
+- The latest user release is **v1.0.1**. It adds incremental CDN streaming,
+  earlier next-track preloading with a playback cushion, and duplicate-load
+  suppression while preserving the v1.0.0 authorization and reconnect
+  hardening.
+- The v1.0.1 release was validated with formatting, the complete demo-feature
+  test suite (295 library tests and 5 binary tests), strict Clippy, and a
   normal release build. Windows and macOS packaging are manual GitHub Actions
   jobs and publish assets to the existing tag.
 - Main may contain documentation or development commits newer than the latest
@@ -207,10 +207,13 @@ MagicSpot has a release checker, not an installer updater. Checks default to
 off; when enabled they query GitHub at most once per day and open the release
 page for a newer version.
 
-The current release can still show a roughly 2–3 second local playback startup
-or skip delay on some sessions. Use `magicspot --verbose` and the
+The current release incrementally exposes CDN bytes to the decoder and starts
+next-track preloading after five seconds of current-track download headroom.
+Once that preload has a five-second playback cushion, queued skips should be
+near-instant. Truly cold loads and skips made before the cushion is ready can
+still vary with Spotify's CDN response. Use `magicspot --verbose` and the
 `magicspot::playback_timing` log entries to distinguish track loading, output
-opening, decoder startup, and audio-queue starvation when investigating it.
+opening, decoder startup, preloading, and audio-queue starvation.
 
 ## Release runbook
 
@@ -262,11 +265,10 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Exercise the v1.0.0 connection, playback authorization, custom theme, and
+- Exercise the v1.0.1 connection, playback authorization, custom theme, and
   local playback flows across varied real Spotify accounts and devices.
-- Continue profiling the remaining local playback startup and skip delay in
-  the shared librespot/Fastpotify playback path, especially decoder buffering,
-  preloading, and reconnect behavior.
+- Continue profiling genuinely cold CDN starts and skips issued before the
+  preload cushion is ready; preserve the new fast queued-transition path.
 - Continue theme-aware window and title-bar polish while preserving performance.
 - Improve lyric timing only when reliable metadata is available.
 - Favor account-synced Spotify features over local-only library organization or
@@ -277,5 +279,5 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The requested v1.0.0 implementation and local validation are complete.
+The requested v1.0.1 implementation and local validation are complete.
 Continue stabilization from user feedback and real-account testing.

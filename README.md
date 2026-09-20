@@ -14,14 +14,15 @@ release direction.
 
 ## Current status
 
-MagicSpot 1.0.0 is the current milestone release. It remains an early
+MagicSpot 1.0.1 is the current milestone release. It remains an early
 personal project, and Spotify Premium is required for local playback through
 librespot. MagicSpot is not affiliated with or endorsed by Spotify.
 
-Some sessions may still take a few seconds to start local audio or resume
-after a skip while the shared librespot playback path fills its decoder. This
-is a known limitation of the current release, not a claim that the Spotify Web
-API Client ID or the user interface controls that delay.
+MagicSpot incrementally streams audio into the decoder and preloads the next
+queued track with a playback cushion. Queued skips are therefore normally
+near-instant once preloading completes. A truly cold, uncached start can still
+vary with Spotify's CDN response; the Spotify Web API Client ID does not
+control that audio path.
 
 ## What is different
 
@@ -146,6 +147,8 @@ details but never credentials.
 - `src/player.rs` contains librespot playback and Connect integration.
 - `src/api/` contains Spotify Web API clients and routing.
 - `src/lyrics.rs` and `src/ui/lyrics.rs` handle retrieval and presentation.
+- `vendor/librespot-audio/` and `vendor/librespot-playback/` contain the small,
+  reviewable streaming and preload patches used by MagicSpot.
 - `packaging/` contains MagicSpot desktop metadata and installer definitions.
 
 ## Upstream maintenance

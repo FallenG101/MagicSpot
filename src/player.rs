@@ -261,6 +261,13 @@ pub enum EngineEvent {
 
 pub type Notify = Arc<dyn Fn(EngineEvent) + Send + Sync>;
 
+const DUPLICATE_LOAD_WINDOW: Duration = Duration::from_secs(5);
+
+struct PendingLoad {
+    spec: LoadSpec,
+    started_at: Instant,
+}
+
 pub struct Engine {
     player: Arc<Player>,
     spirc: Arc<Spirc>,
@@ -278,6 +285,9 @@ pub struct Engine {
     /// MagicSpot merely starts or publishing an empty state before every
     /// already-active load.
     active: Arc<std::sync::atomic::AtomicBool>,
+    /// The local load currently waiting for librespot to finish. Reissuing
+    /// the exact same request restarts its CDN download from zero.
+    pending_load: Arc<Mutex<Option<PendingLoad>>>,
 }
 
 impl Engine {
@@ -322,6 +332,7 @@ impl Engine {
         let session = Session::new(session_config, Some(cache));
         let timing = PlaybackTiming::new();
         let active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let pending_load = Arc::new(Mutex::new(None));
         let audio = AudioControl::new(config.buffer_ms, Arc::clone(&timing));
         let (sink_builder, volume) = sink_builder(
             config,
@@ -339,6 +350,7 @@ impl Engine {
             Arc::clone(&audio),
             Arc::clone(&timing),
             Arc::clone(&active),
+            Arc::clone(&pending_load),
         ));
 
         let connect_config = ConnectConfig {
@@ -402,6 +414,7 @@ impl Engine {
             audio,
             timing,
             active,
+            pending_load,
         })
     }
 
@@ -500,6 +513,29 @@ impl Engine {
     }
 
     pub fn command(&self, command: PlayerCommand) -> Result<()> {
+        let load = match &command {
+            PlayerCommand::Load(spec) => Some(spec.clone()),
+            _ => None,
+        };
+        if load.as_ref().is_some_and(|spec| {
+            duplicate_pending_load(
+                &self.pending_load.lock().unwrap_or_else(|p| p.into_inner()),
+                spec,
+            )
+        }) {
+            log::info!("ignoring duplicate local load while the first request is still pending");
+            return Ok(());
+        }
+
+        if matches!(command, PlayerCommand::Next | PlayerCommand::Previous) {
+            *self.pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
+        }
+        if let Some(spec) = load.as_ref() {
+            *self.pending_load.lock().unwrap_or_else(|p| p.into_inner()) = Some(PendingLoad {
+                spec: spec.clone(),
+                started_at: Instant::now(),
+            });
+        }
         let times_playback = if let Some((kind, target)) = timing_request(&command) {
             self.timing.begin(kind, target);
             true
@@ -514,6 +550,9 @@ impl Engine {
             self.audio.interrupt();
         }
         let result = self.send_command(command);
+        if result.is_err() && load.is_some() {
+            *self.pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
+        }
         if times_playback {
             if result.is_ok() {
                 self.timing.dispatched();
@@ -606,6 +645,12 @@ impl Engine {
     }
 }
 
+fn duplicate_pending_load(pending: &Option<PendingLoad>, spec: &LoadSpec) -> bool {
+    pending.as_ref().is_some_and(|pending| {
+        pending.spec == *spec && pending.started_at.elapsed() < DUPLICATE_LOAD_WINDOW
+    })
+}
+
 fn timing_request(command: &PlayerCommand) -> Option<(&'static str, Option<&str>)> {
     match command {
         PlayerCommand::Next => Some(("next", None)),
@@ -696,6 +741,7 @@ async fn run_events(
     audio: Arc<AudioControl>,
     timing: Arc<PlaybackTiming>,
     active: Arc<std::sync::atomic::AtomicBool>,
+    pending_load: Arc<Mutex<Option<PendingLoad>>>,
 ) {
     let mut play_request_id = None;
     while let Some(event) = events.recv().await {
@@ -716,6 +762,7 @@ async fn run_events(
                 timing.loading(&track_id.to_uri().unwrap_or_default());
             }
             PlayerEvent::TrackChanged { audio_item } => {
+                *pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
                 timing.track_changed(&audio_item.uri);
             }
             PlayerEvent::Playing { track_id, .. } => {
@@ -725,6 +772,7 @@ async fn run_events(
                 timing.preloaded(&track_id.to_uri().unwrap_or_default());
             }
             PlayerEvent::Stopped { .. } => {
+                *pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
                 timing.stopped();
             }
             PlayerEvent::SessionConnected { .. } => {
@@ -732,9 +780,16 @@ async fn run_events(
             }
             PlayerEvent::SessionDisconnected { .. } => {
                 active.store(false, std::sync::atomic::Ordering::SeqCst);
+                *pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
             }
-            PlayerEvent::Unavailable { .. } => timing.failed("track unavailable"),
-            PlayerEvent::AudioKeyUnavailable { .. } => timing.failed("audio key unavailable"),
+            PlayerEvent::Unavailable { .. } => {
+                *pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
+                timing.failed("track unavailable");
+            }
+            PlayerEvent::AudioKeyUnavailable { .. } => {
+                *pending_load.lock().unwrap_or_else(|p| p.into_inner()) = None;
+                timing.failed("audio key unavailable");
+            }
             _ => {}
         }
         audio.handle_player_event(&event);
@@ -1159,6 +1214,27 @@ mod tests {
             &playing,
             &PlayerCommand::Seek(10)
         ));
+    }
+
+    #[test]
+    fn identical_pending_loads_are_temporarily_deduplicated() {
+        let spec = LoadSpec {
+            uris: vec!["spotify:track:x".into()],
+            play: true,
+            ..LoadSpec::default()
+        };
+        let pending = Some(PendingLoad {
+            spec: spec.clone(),
+            started_at: Instant::now(),
+        });
+
+        assert!(duplicate_pending_load(&pending, &spec));
+
+        let different = LoadSpec {
+            uris: vec!["spotify:track:y".into()],
+            ..spec
+        };
+        assert!(!duplicate_pending_load(&pending, &different));
     }
 
     /// Spotify making this Connect device inactive must not be mistaken for

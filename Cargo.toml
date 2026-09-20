@@ -1,6 +1,6 @@
 [package]
 name = "magicspot"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -139,12 +139,18 @@ opt-level = 2
 [patch.crates-io]
 # librespot 0.8.0 plus the small patches MagicSpot inherits: queue controls,
 # a distinct event when Spotify refuses an audio key, and bounded socket setup
-# with DNS address fallback. Every librespot crate comes from the
-# fork so one copy exists. Drop patches as upstream takes them.
-librespot-audio = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
+# with DNS address fallback. Core crates come from that fork; the audio and
+# playback crates are vendored below for MagicSpot's streaming startup fixes.
+# Drop patches as upstream takes them.
 librespot-connect = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
 librespot-core = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
 librespot-metadata = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
 librespot-oauth = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
-librespot-playback = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
+librespot-playback = { path = "vendor/librespot-playback" }
 librespot-protocol = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
+
+# `librespot-playback` obtains its audio crate from the same Git workspace,
+# rather than crates.io. Override that source so the streaming fix is linked.
+[patch."https://github.com/crmne/librespot"]
+librespot-audio = { path = "vendor/librespot-audio" }
+librespot-playback = { path = "vendor/librespot-playback" }

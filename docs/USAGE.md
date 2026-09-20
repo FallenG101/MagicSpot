@@ -142,9 +142,11 @@ and playback transfer. Its copyable support report excludes credentials.
 
 For deeper troubleshooting, start MagicSpot with `--verbose`. This enables
 additional Web API and librespot logging, including playback-timing milestones
-for track loading, output opening, and the first queued audio. Some sessions
-may still take a few seconds to start or resume local audio; a personal Client
-ID changes Web API routing and quota, not the underlying audio stream.
+for track loading, output opening, preloading, and the first queued audio.
+Queued skips should be near-instant after next-track preloading completes. A
+truly cold start, or a rapid skip before the preload cushion is ready, can
+still vary with Spotify's CDN response. A personal Client ID changes Web API
+routing and quota, not the underlying audio stream.
 
 Update checks are disabled by default. When enabled, MagicSpot checks GitHub at
 most once per day and offers the release page when a newer version exists. The

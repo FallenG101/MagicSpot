@@ -3,6 +3,23 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
+## v1.0.1 — 2026-09-20
+
+- Streamed Spotify CDN response frames into the decoder as they arrive,
+  reduced the initial range request to 32 KiB, and removed an unnecessary
+  accurate seek when playback begins at the start of a track.
+- Started next-track preloading once the current track has five seconds of
+  downloaded headroom, then requested a five-second playback cushion for the
+  queued track before transition.
+- Suppressed duplicate local load requests while the first request is pending,
+  preventing a repeated UI or Connect command from restarting the same CDN
+  download.
+- Preserved non-zero seek accuracy, gapless boundaries, queue behavior, and
+  the existing Fastpotify playback authorization and reconnect hardening.
+- Live verbose testing measured preloaded skips at roughly 6–24 ms without the
+  former multi-second post-skip starvation. Truly cold starts remain dependent
+  on Spotify CDN response time.
+
 ## v1.0.0 — 2026-09-20
 
 - Hardened the separate local playback authorization flow so streaming

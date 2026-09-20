@@ -2848,7 +2848,6 @@ dependencies = [
 [[package]]
 name = "librespot-audio"
 version = "0.8.0"
-source = "git+https://github.com/crmne/librespot?branch=fastpotify-0.8#34ed484cb54f1217d1347a271eb299bb63444b75"
 dependencies = [
  "aes",
  "bytes",
@@ -2973,7 +2972,6 @@ dependencies = [
 [[package]]
 name = "librespot-playback"
 version = "0.8.0"
-source = "git+https://github.com/crmne/librespot?branch=fastpotify-0.8#34ed484cb54f1217d1347a271eb299bb63444b75"
 dependencies = [
  "cpal",
  "form_urlencoded",
@@ -3066,7 +3064,7 @@ dependencies = [
 
 [[package]]
 name = "magicspot"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "aes",
  "anyhow",
