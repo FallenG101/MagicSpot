@@ -294,7 +294,7 @@ fn main() -> eframe::Result<()> {
             }
         });
     let default_filter = if cli.verbose {
-        "info,librespot=info,magicspot=debug"
+        "info,librespot=info,librespot_audio=trace,magicspot=debug"
     } else {
         "warn,magicspot=info"
     };

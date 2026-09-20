@@ -909,7 +909,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 );
                 theme::text(
                     ui,
-                    "Based on Fastpotify by Carmine Paolino (MIT). Built with Rust, egui, and librespot. Not affiliated with Spotify.",
+                    "Based on Spotifast by Carmine Paolino (MIT). Built with Rust, egui, and librespot. Not affiliated with Spotify.",
                     theme::regular(13.0),
                     palette.secondary,
                 );

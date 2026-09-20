@@ -33,6 +33,7 @@ use librespot_playback::{
 };
 use sha1::{Digest, Sha1};
 
+use crate::playback_timing::PlaybackTiming;
 use crate::sink::{AudioControl, ErrorHook, RodioSink};
 use crate::vis::Processed;
 
@@ -271,6 +272,12 @@ pub struct Engine {
     interrupted: Arc<Mutex<Option<Interrupted>>>,
     shutting_down: Arc<std::sync::atomic::AtomicBool>,
     audio: Arc<AudioControl>,
+    timing: Arc<PlaybackTiming>,
+    /// Whether Spirc currently owns the Spotify Connect session. A local
+    /// load activates only when needed, rather than stealing playback when
+    /// MagicSpot merely starts or publishing an empty state before every
+    /// already-active load.
+    active: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Engine {
@@ -313,7 +320,9 @@ impl Engine {
             ..LocalState::default()
         }));
         let session = Session::new(session_config, Some(cache));
-        let audio = AudioControl::new(config.buffer_ms);
+        let timing = PlaybackTiming::new();
+        let active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let audio = AudioControl::new(config.buffer_ms, Arc::clone(&timing));
         let (sink_builder, volume) = sink_builder(
             config,
             Arc::clone(&state),
@@ -328,6 +337,8 @@ impl Engine {
             Arc::clone(&state),
             Arc::clone(&notify),
             Arc::clone(&audio),
+            Arc::clone(&timing),
+            Arc::clone(&active),
         ));
 
         let connect_config = ConnectConfig {
@@ -389,6 +400,8 @@ impl Engine {
             interrupted,
             shutting_down,
             audio,
+            timing,
+            active,
         })
     }
 
@@ -487,6 +500,12 @@ impl Engine {
     }
 
     pub fn command(&self, command: PlayerCommand) -> Result<()> {
+        let times_playback = if let Some((kind, target)) = timing_request(&command) {
+            self.timing.begin(kind, target);
+            true
+        } else {
+            false
+        };
         let interrupts_audio = command_interrupts_audio(
             &self.state.lock().unwrap_or_else(|p| p.into_inner()),
             &command,
@@ -495,6 +514,13 @@ impl Engine {
             self.audio.interrupt();
         }
         let result = self.send_command(command);
+        if times_playback {
+            if result.is_ok() {
+                self.timing.dispatched();
+            } else {
+                self.timing.failed("command dispatch failed");
+            }
+        }
         if interrupts_audio && result.is_err() {
             self.audio.stopped();
         }
@@ -530,7 +556,10 @@ impl Engine {
                     spirc.repeat_track(true)?;
                 }
             },
-            PlayerCommand::Activate => spirc.activate()?,
+            PlayerCommand::Activate => {
+                spirc.activate()?;
+                self.active.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
             PlayerCommand::Load(spec) => {
                 let playing_track = spec
                     .offset_uri
@@ -560,16 +589,35 @@ impl Engine {
                 } else {
                     anyhow::bail!("nothing to play");
                 };
-                // `Spirc::load` activates URI contexts itself.  Direct-track
-                // contexts are already active after `Spirc::new`; sending a
-                // separate activation first publishes an empty context and
-                // Spotify can reject it with 400.  Apart from wasted work,
-                // that leaves a freshly reconnected player waiting for its
-                // resume retry before audio can start.
+                // Spirc starts inactive and explicitly ignores `Load` in that
+                // state. Activate only for the first local load (or after
+                // another Connect device takes over). Queue ordering ensures
+                // activation is handled before the load. Avoiding activation
+                // while already active also avoids an unnecessary empty-state
+                // publication and its possible 400 response.
+                if !self.active.load(std::sync::atomic::Ordering::SeqCst) {
+                    spirc.activate()?;
+                    self.active.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
                 spirc.load(request)?;
             }
         }
         Ok(())
+    }
+}
+
+fn timing_request(command: &PlayerCommand) -> Option<(&'static str, Option<&str>)> {
+    match command {
+        PlayerCommand::Next => Some(("next", None)),
+        PlayerCommand::Previous => Some(("previous", None)),
+        PlayerCommand::Load(spec) => Some((
+            "load",
+            spec.offset_uri
+                .as_deref()
+                .or_else(|| spec.uris.first().map(String::as_str))
+                .or(spec.context_uri.as_deref()),
+        )),
+        _ => None,
     }
 }
 
@@ -646,6 +694,8 @@ async fn run_events(
     state: Arc<Mutex<LocalState>>,
     notify: Notify,
     audio: Arc<AudioControl>,
+    timing: Arc<PlaybackTiming>,
+    active: Arc<std::sync::atomic::AtomicBool>,
 ) {
     let mut play_request_id = None;
     while let Some(event) = events.recv().await {
@@ -662,12 +712,32 @@ async fn run_events(
             continue;
         }
         match &event {
-            PlayerEvent::TrackChanged { .. } | PlayerEvent::Seeked { .. } => {
-                audio.track_changed();
+            PlayerEvent::Loading { track_id, .. } => {
+                timing.loading(&track_id.to_uri().unwrap_or_default());
             }
-            PlayerEvent::Stopped { .. } => audio.stopped(),
+            PlayerEvent::TrackChanged { audio_item } => {
+                timing.track_changed(&audio_item.uri);
+            }
+            PlayerEvent::Playing { track_id, .. } => {
+                timing.playing(&track_id.to_uri().unwrap_or_default());
+            }
+            PlayerEvent::Preloading { track_id } => {
+                timing.preloaded(&track_id.to_uri().unwrap_or_default());
+            }
+            PlayerEvent::Stopped { .. } => {
+                timing.stopped();
+            }
+            PlayerEvent::SessionConnected { .. } => {
+                active.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+            PlayerEvent::SessionDisconnected { .. } => {
+                active.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+            PlayerEvent::Unavailable { .. } => timing.failed("track unavailable"),
+            PlayerEvent::AudioKeyUnavailable { .. } => timing.failed("audio key unavailable"),
             _ => {}
         }
+        audio.handle_player_event(&event);
         let snapshot = {
             let mut current = state.lock().unwrap_or_else(|p| p.into_inner());
             if apply_event(&mut current, event) {

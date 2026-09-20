@@ -36,6 +36,7 @@ pub mod media_controls;
 pub mod model;
 pub mod opener;
 pub mod paths;
+mod playback_timing;
 pub mod player;
 pub mod resample;
 pub mod settings;

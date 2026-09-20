@@ -15,9 +15,11 @@ use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
 use librespot_playback::convert::Converter;
 use librespot_playback::decoder::AudioPacket;
 use librespot_playback::mixer::VolumeGetter;
+use librespot_playback::player::PlayerEvent;
 use librespot_playback::{NUM_CHANNELS, SAMPLE_RATE};
 use rodio::Source;
 
+use crate::playback_timing::PlaybackTiming;
 use crate::resample::Resampler;
 
 /// The backend name Settings uses for this sink.
@@ -55,11 +57,14 @@ pub const BUFFER_MS_RANGE: std::ops::RangeInclusive<u32> = 20..=500;
 /// leaves the old queued audio in front of the replacement. The old signal is
 /// faded on rodio's output thread before its queue is discarded; writes stay
 /// gated until librespot reports that the replacement track is loaded.
+/// A confirmed seek also discards queued audio, without gating packets from
+/// the decoder that has already moved to the requested position.
 pub struct AudioControl {
     target: Mutex<AudioTarget>,
     waiting_for_track: AtomicBool,
     reset_output: AtomicBool,
     buffer_ms: u32,
+    timing: Arc<PlaybackTiming>,
 }
 
 #[derive(Default)]
@@ -69,13 +74,35 @@ struct AudioTarget {
 }
 
 impl AudioControl {
-    pub fn new(buffer_ms: u32) -> Arc<Self> {
+    pub(crate) fn new(buffer_ms: u32, timing: Arc<PlaybackTiming>) -> Arc<Self> {
         Arc::new(Self {
             target: Mutex::new(AudioTarget::default()),
             waiting_for_track: AtomicBool::new(false),
             reset_output: AtomicBool::new(false),
             buffer_ms: buffer_ms.clamp(*BUFFER_MS_RANGE.start(), *BUFFER_MS_RANGE.end()),
+            timing,
         })
+    }
+
+    /// Follows confirmed decoder transitions, including seeks requested by
+    /// another Spotify client. Natural track changes retain gapless audio.
+    pub(crate) fn handle_player_event(&self, event: &PlayerEvent) {
+        match event {
+            PlayerEvent::TrackChanged { .. } => self.track_changed(),
+            PlayerEvent::Seeked { .. } => {
+                let target = self.target.lock().unwrap_or_else(PoisonError::into_inner);
+                if let Some(sink) = target.sink.upgrade() {
+                    sink.stop();
+                }
+                self.reset_output.store(true, Ordering::SeqCst);
+                // Previous can rewind the current track after interrupting
+                // it. Release that gate, but never close it for a seek: the
+                // decoder is already sending audio from the new position.
+                self.track_changed();
+            }
+            PlayerEvent::Stopped { .. } => self.stopped(),
+            _ => {}
+        }
     }
 
     /// Fades and discards the current output before a user-requested track
@@ -357,10 +384,12 @@ impl RodioSink {
         if self.output.is_some() {
             return Ok(());
         }
+        self.control.timing.output_opening();
         match open_output(self.device.as_deref(), self.buffer_ms, &self.control) {
             Ok(output) => {
                 self.output = Some(output);
                 self.applied_volume = -1.0;
+                self.control.timing.output_opened();
                 Ok(())
             }
             Err(error) => {
@@ -375,6 +404,7 @@ impl RodioSink {
 
 impl Sink for RodioSink {
     fn start(&mut self) -> SinkResult<()> {
+        self.control.timing.sink_start();
         take_precedence();
         self.follow_default(true);
         self.ensure_open()?;
@@ -449,6 +479,7 @@ impl Sink for RodioSink {
         output
             .sink
             .append(TransitionSource::new(source, Arc::clone(&output.envelope)));
+        self.control.timing.first_audio_queued();
         output.fed = true;
         output.last_write = Some(now);
         // Let rodio drain a little; without this the whole track would be
@@ -716,7 +747,7 @@ mod tests {
             Arc::new(move |message| *store.lock().unwrap() = Some(message)),
             Box::new(librespot_playback::mixer::NoOpVolume),
             DEFAULT_BUFFER_MS,
-            AudioControl::new(DEFAULT_BUFFER_MS),
+            AudioControl::new(DEFAULT_BUFFER_MS, PlaybackTiming::new()),
         );
         match sink.start() {
             Ok(()) => assert!(reported.lock().unwrap().is_none()),
@@ -726,6 +757,100 @@ mod tests {
             Err(other) => panic!("unexpected error: {other}"),
         }
         assert!(sink.stop().is_ok());
+    }
+
+    fn control() -> Arc<AudioControl> {
+        AudioControl::new(DEFAULT_BUFFER_MS, PlaybackTiming::new())
+    }
+
+    fn track_id() -> librespot_core::SpotifyUri {
+        librespot_core::SpotifyUri::from_uri("spotify:track:14XWXWv5FoCbFzLksawpEe").unwrap()
+    }
+
+    #[test]
+    fn confirmed_seek_discards_old_audio_without_gating_new_packets() {
+        let control = control();
+        let (sink, mut output) = rodio::Sink::new();
+        let sink = Arc::new(sink);
+        control.register(&sink, Envelope::full(SAMPLE_RATE));
+        sink.append(rodio::buffer::SamplesBuffer::new(
+            NUM_CHANNELS.into(),
+            SAMPLE_RATE,
+            vec![1.0; SAMPLE_RATE as usize * NUM_CHANNELS as usize],
+        ));
+        assert_eq!(output.next(), Some(1.0));
+
+        control.handle_player_event(&PlayerEvent::Seeked {
+            play_request_id: 1,
+            track_id: track_id(),
+            position_ms: 90_000,
+        });
+
+        output
+            .by_ref()
+            .take((SAMPLE_RATE as usize / 50) * NUM_CHANNELS as usize)
+            .for_each(drop);
+        assert!(output.take(50).all(|sample| sample == 0.0));
+        assert!(!control.waiting_for_track());
+        assert!(control.take_reset(), "the next packet gets a fresh queue");
+    }
+
+    #[test]
+    fn track_change_preserves_gapless_audio_and_does_not_reset_output() {
+        use librespot_metadata::audio::item::{AudioItem, UniqueFields};
+
+        let control = control();
+        let (sink, mut output) = rodio::Sink::new();
+        let sink = Arc::new(sink);
+        control.register(&sink, Envelope::full(SAMPLE_RATE));
+        sink.append(rodio::buffer::SamplesBuffer::new(
+            NUM_CHANNELS.into(),
+            SAMPLE_RATE,
+            vec![1.0; 500 * NUM_CHANNELS as usize],
+        ));
+        assert_eq!(output.next(), Some(1.0));
+        let track_id = track_id();
+        control.handle_player_event(&PlayerEvent::TrackChanged {
+            audio_item: Box::new(AudioItem {
+                track_id: track_id.clone(),
+                uri: track_id.to_uri().unwrap(),
+                files: Default::default(),
+                name: "Next song".into(),
+                covers: vec![],
+                language: vec![],
+                duration_ms: 200_000,
+                is_explicit: false,
+                availability: Ok(()),
+                alternatives: None,
+                unique_fields: UniqueFields::Track {
+                    artists: Default::default(),
+                    album: "Album".into(),
+                    album_artists: vec![],
+                    popularity: 0,
+                    number: 1,
+                    disc_number: 1,
+                },
+            }),
+        });
+
+        assert!(output.take(100).all(|sample| sample == 1.0));
+        assert!(!control.take_reset());
+    }
+
+    #[test]
+    fn previous_rewind_releases_the_interrupted_track_gate() {
+        let control = control();
+        control.interrupt();
+        assert!(control.waiting_for_track());
+
+        control.handle_player_event(&PlayerEvent::Seeked {
+            play_request_id: 1,
+            track_id: track_id(),
+            position_ms: 0,
+        });
+
+        assert!(!control.waiting_for_track());
+        assert!(control.take_reset());
     }
 
     #[test]

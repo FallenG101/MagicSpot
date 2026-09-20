@@ -1,6 +1,6 @@
 [package]
 name = "magicspot"
-version = "0.9.99"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -138,8 +138,8 @@ opt-level = 2
 
 [patch.crates-io]
 # librespot 0.8.0 plus the small patches MagicSpot inherits: queue controls,
-# a distinct event when Spotify refuses an audio key, and a connection deadline that includes
-# socket setup. Every librespot crate comes from the
+# a distinct event when Spotify refuses an audio key, and bounded socket setup
+# with DNS address fallback. Every librespot crate comes from the
 # fork so one copy exists. Drop patches as upstream takes them.
 librespot-audio = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
 librespot-connect = { git = "https://github.com/crmne/librespot", branch = "fastpotify-0.8" }
