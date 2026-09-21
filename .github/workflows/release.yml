@@ -33,7 +33,6 @@ jobs:
         run: |
           $version = $env:RELEASE_TAG.TrimStart('v')
           New-Item -ItemType Directory -Path dist, "stage/MagicSpot" -Force | Out-Null
-          Copy-Item target/release/magicspot.exe dist/magicspot.exe
           Copy-Item target/release/magicspot.exe, README.md, LICENSE -Destination "stage/MagicSpot"
           Compress-Archive -Path "stage/MagicSpot" -DestinationPath "dist/magicspot-v$version-x86_64-pc-windows-msvc.zip"
       - name: Build Windows installer

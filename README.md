@@ -56,7 +56,9 @@ Download the normal setup program or portable ZIP from
 installs for the current user and does not require administrator rights. Builds
 are currently unsigned, so Windows may ask you to confirm the publisher.
 
-The raw `magicspot.exe` is also attached to every release.
+The portable ZIP contains `magicspot.exe`, the README, and the license without
+installing or registering the application. A duplicate loose executable is not
+published separately.
 
 ## Install on macOS
 

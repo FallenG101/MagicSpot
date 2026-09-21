@@ -234,7 +234,8 @@ When publishing a requested release:
 5. From GitHub's Actions page, manually run **CI** if cross-platform validation
    is warranted.
 6. Manually run **Release** with the exact tag to create or update the Windows
-   installer, portable ZIP, raw executable, and checksums.
+   installer, portable ZIP, and checksums. The executable is inside the ZIP;
+   do not publish a duplicate loose executable.
 7. Manually run **macOS release** with the same tag to attach the universal DMG
    and checksum. Run Windows first because the macOS job expects a GitHub
    release to exist.
