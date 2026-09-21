@@ -151,7 +151,8 @@ routing and quota, not the underlying audio stream.
 Update checks are disabled by default. When enabled, MagicSpot checks GitHub at
 most once per day and offers the release page when a newer version exists. The
 app does not download or install updates in place; use the new installer, ZIP,
-or DMG from GitHub Releases.
+or DMG from GitHub Releases. `checksums.txt` covers the Windows installer and
+portable ZIP, while each Mac DMG has a matching `.sha256` file.
 
 ## Files and reset behavior
 

@@ -16,7 +16,9 @@ agent, or chat that does not have the project's conversation history.
 - The v1.0.1 release was validated with formatting, the complete demo-feature
   test suite (295 library tests and 5 binary tests), strict Clippy, and a
   normal release build. Windows and macOS packaging are manual GitHub Actions
-  jobs and publish assets to the existing tag.
+  jobs and publish assets to the existing tag. Its published downloads are the
+  Windows installer, portable ZIP, universal macOS DMG, and their checksum
+  files; GitHub also supplies source archives for the tag.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -240,7 +242,9 @@ When publishing a requested release:
    and checksum. Run Windows first because the macOS job expects a GitHub
    release to exist.
 8. Verify that the release is neither a draft nor prerelease and that every
-   expected asset is present before reporting completion.
+   expected asset is present before reporting completion: Windows installer,
+   portable ZIP, `checksums.txt`, universal DMG, and its `.sha256` file, plus
+   GitHub's generated source archives.
 
 The workflows are idempotent for an existing release: Windows uploads with
 `--clobber`, and macOS already does the same. Standard hosted runners are free

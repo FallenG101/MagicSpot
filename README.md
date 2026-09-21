@@ -58,7 +58,8 @@ are currently unsigned, so Windows may ask you to confirm the publisher.
 
 The portable ZIP contains `magicspot.exe`, the README, and the license without
 installing or registering the application. A duplicate loose executable is not
-published separately.
+published separately. Use the release's `checksums.txt` to verify either
+Windows download when needed.
 
 ## Install on macOS
 
@@ -71,7 +72,8 @@ Current Mac builds are ad hoc signed while MagicSpot is a personal project. On
 first launch, macOS may require you to Control-click MagicSpot, choose **Open**,
 and confirm. Developer ID signing and Apple notarization are planned for a
 future trusted-distribution release; the public repository and current
-downloads remain usable without them.
+downloads remain usable without them. Each DMG has a matching `.sha256` file
+for integrity verification.
 
 Homebrew support will follow the DMG once public releases are stable. A Cask is
 an alternate installation route for the same release artifact, rather than a

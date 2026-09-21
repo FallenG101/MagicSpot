@@ -23,8 +23,8 @@ wholesale merge unless the divergence has first been audited. Files most likely 
 `src/app.rs`, `src/settings.rs`, `src/theme.rs`, and `src/ui/` because MagicSpot
 intentionally changes the shell, appearance, and lyrics behavior.
 
-At the 2026-09-13 audit, Fastpotify was 76 commits ahead of the shared fork
-point while MagicSpot was 23 commits ahead, with broad overlap across core UI
+At the 2026-09-20 audit, Fastpotify was 148 commits ahead of the shared fork
+point while MagicSpot was 31 commits ahead, with broad overlap across core UI
 and application files. Full merges are therefore high-conflict; selective
 playback, API, platform, accessibility, and performance integrations remain
 manageable and worthwhile. Review upstream weekly or before each substantial
