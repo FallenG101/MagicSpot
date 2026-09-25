@@ -9,11 +9,11 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest requested release is **v2.0.0**, covering album and playlist
+- The latest user release is **v2.0.0**, covering album and playlist
   loading, cold playback startup, backend responsiveness, API decode timing,
-  and media-control update costs. Local formatting, tests, strict Clippy, and
-  a release build passed; the GitHub tag and platform packages are still
-  pending publication.
+  and media-control update costs. Formatting, all 302 demo tests, strict
+  Clippy, the release build, and cross-platform CI passed. The Windows
+  installer, portable ZIP, universal macOS DMG, and checksums are published.
 - Windows and macOS packaging are manual GitHub Actions jobs. A complete
   published release includes the Windows installer and portable ZIP, a
   universal macOS DMG, checksum files, and GitHub source archives.
@@ -283,5 +283,5 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The v2.0.0 implementation and local validation are complete. Continue release
-publication and stabilization from user feedback and real-account testing.
+The v2.0.0 release and validation are complete. Continue stabilization from
+user feedback and real-account testing.

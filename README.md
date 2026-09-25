@@ -14,7 +14,7 @@ release direction.
 
 ## Current status
 
-MagicSpot 2.0.0 is the prepared milestone release. It remains an early
+MagicSpot 2.0.0 is the current milestone release. It remains an early
 personal project, and Spotify Premium is required for local playback through
 librespot. MagicSpot is not affiliated with or endorsed by Spotify.
 
