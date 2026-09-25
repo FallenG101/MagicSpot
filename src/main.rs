@@ -276,6 +276,7 @@ fn format_devices(snapshot: &str) -> String {
 }
 
 fn main() -> eframe::Result<()> {
+    let launch_started = std::time::Instant::now();
     let cli = Cli::parse();
     // A control launch is a client, not a second app: talk to the running
     // instance and exit before touching the log file it is writing to.
@@ -391,9 +392,11 @@ fn main() -> eframe::Result<()> {
     #[cfg(feature = "demo")]
     let demo_inner = cli.demo_size;
     let slot = std::sync::Arc::new(std::sync::Mutex::new(Some(app)));
+    let mut first_window = true;
     loop {
         let creator_slot = std::sync::Arc::clone(&slot);
         let creator_waker = waker.clone();
+        let startup_started = first_window.then_some(launch_started);
         #[cfg(feature = "demo")]
         let creator_shot = shot.clone();
         #[cfg(feature = "demo")]
@@ -423,11 +426,13 @@ fn main() -> eframe::Result<()> {
                 Ok(Box::new(Shell {
                     app: Some(app),
                     slot: std::sync::Arc::clone(&creator_slot),
+                    startup_started,
                     #[cfg(feature = "demo")]
                     shot: creator_shot.clone(),
                 }))
             }),
         )?;
+        first_window = false;
         waker.detach();
 
         let hide = {
@@ -643,6 +648,7 @@ mod native_window_tests {
 struct Shell {
     app: Option<app::App>,
     slot: std::sync::Arc<std::sync::Mutex<Option<app::App>>>,
+    startup_started: Option<std::time::Instant>,
     /// A pending `--demo-shot` capture, if this is a screenshot run.
     #[cfg(feature = "demo")]
     shot: Option<Shot>,
@@ -777,6 +783,13 @@ impl eframe::App for Shell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Some(app) = self.app.as_mut() {
             app.frame_ui(ui);
+            if let Some(started) = self.startup_started.take() {
+                log::debug!(
+                    target: "magicspot::startup_timing",
+                    "startup first_ui_ms={}",
+                    started.elapsed().as_millis()
+                );
+            }
         }
     }
 

@@ -24,11 +24,64 @@ account or a release-profile timing rig:
   throttles position publication. Explicit seeks still publish immediately.
   The frame path also reuses one now-playing snapshot for these controls and
   the local control channel.
+- Verbose logs now record album and playlist navigation through metadata,
+  first-page response, first useful header frame, and first usable rows frame.
+  They also record process start through the first UI frame. The summary
+  script computes median and p95 from collected runs.
+- Artwork on disk has a 512 MiB target. Startup and post-write cleanup remove
+  oldest unreferenced files and partial writes on a blocking worker. Active
+  images and the cover handed to desktop media controls are protected.
+  Concurrent direct and UI artwork requests for one URL share a fetch.
 
 The remaining phases require comparative release-build measurements, an
 authenticated account, and platform-specific runs. The code changes above are
 functional improvements, not measured speedup claims. Record the baseline and
 repeat it after each further tuning batch before setting numeric targets.
+
+## Measuring album, playlist, and playback latency
+
+Run an optimized build with `--verbose`. On Windows the current-run log is
+`%LOCALAPPDATA%\falleng101\magicspot\data\MagicSpot.log`; the app replaces it at launch, so
+copy it into a private measurement directory before each restart. Do not
+publish raw logs, which may include account or library details from other
+subsystems. The new `magicspot::page_timing` entries contain only page type,
+cache flags, source, and elapsed time. `magicspot::startup_timing` records the
+first UI frame. Existing `magicspot::playback_timing` summaries record time to
+the first queued audio buffer, which is earlier than audible output.
+If `RUST_LOG` is set, it overrides the default `--verbose` filter; include
+`magicspot=debug` or the individual timing targets in that environment value.
+
+Use at least five repetitions of each scenario in the same build and network
+conditions:
+
+1. Open an album and playlist with no in-memory page entry, then revisit each
+   while its page entry remains. Note whether rows are already loaded; the
+   log's `warm_header` and `warm_rows` flags classify this automatically.
+2. Restart for process-start timing. Capture the first UI frame and, if the
+   session restores an album or playlist, its page timing separately.
+3. For playback, label trials manually as uncached, disk-cached, or preloaded.
+   Avoid clearing the audio cache between repeated disk-cached trials. Use
+   distinct tracks or a cleared audio cache only for intentionally uncached
+   trials. The `kind` field in the playback trace is the player's own
+   classification and should be retained when comparing results.
+
+Summarize copied logs with PowerShell:
+
+```powershell
+.\scripts\performance-summary.ps1 -Path .\measurements\pages-*.log
+.\scripts\performance-summary.ps1 -Path .\measurements\cold-*.log -PlaybackScenario uncached
+```
+
+The output reports sample count, median, and nearest-rank p95 in milliseconds
+per scenario and milestone. Keep build revision, machine, network condition,
+and trial preparation alongside the results. A p95 from five trials is simply
+the slowest trial; collect more repetitions before drawing a tight conclusion.
+
+The first Windows release-build validation on 2026-09-25 confirmed that the
+markers and summary script work against a real restored playlist. Spotify was
+returning repeated rate limits during the run, so the single recorded trial
+is a functional check, not a cold/warm performance baseline. Repeat the
+comparative runs once requests are no longer being throttled.
 
 ## Goals
 

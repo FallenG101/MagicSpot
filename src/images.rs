@@ -1,9 +1,9 @@
 //! Album art: fetched once, kept on disk, decoded by egui on demand.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, Weak};
+use std::time::{Instant, SystemTime};
 
 use egui::load::{Bytes, BytesLoadResult, BytesLoader, BytesPoll, LoadError};
 use sha1::{Digest, Sha1};
@@ -17,7 +17,17 @@ use sha1::{Digest, Sha1};
 /// Size-based eviction keeps visible images stable.
 const HELD_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ART_BYTES: usize = 8 * 1024 * 1024;
+const DISK_BYTES: u64 = 512 * 1024 * 1024;
 const BLURRED_PREFIX: &str = "magicspot-blurred:";
+
+type FetchResult = Result<Arc<[u8]>, String>;
+type FetchFlight = tokio::sync::Mutex<Option<FetchResult>>;
+
+#[derive(Default)]
+struct DiskState {
+    /// Scanned at startup; updated after each completed cache write.
+    bytes: Option<u64>,
+}
 
 /// Decoded ColorImage plus the GPU texture, both RGBA.
 fn decoded_and_texture_bytes(width: usize, height: usize) -> usize {
@@ -37,6 +47,9 @@ enum Entry {
 
 struct Inner {
     entries: Mutex<HashMap<String, Entry>>,
+    flights: Mutex<HashMap<String, Weak<FetchFlight>>>,
+    disk: Mutex<DiskState>,
+    media_art_file: Mutex<Option<PathBuf>>,
     http: reqwest::Client,
     runtime: tokio::runtime::Handle,
     cache_dir: PathBuf,
@@ -50,14 +63,22 @@ pub struct ArtLoader {
 impl ArtLoader {
     pub fn new(http: reqwest::Client, runtime: tokio::runtime::Handle, cache_dir: PathBuf) -> Self {
         let _ = std::fs::create_dir_all(&cache_dir);
-        Self {
-            inner: Arc::new(Inner {
-                entries: Mutex::new(HashMap::new()),
-                http,
-                runtime,
-                cache_dir,
-            }),
-        }
+        let inner = Arc::new(Inner {
+            entries: Mutex::new(HashMap::new()),
+            flights: Mutex::new(HashMap::new()),
+            disk: Mutex::new(DiskState::default()),
+            media_art_file: Mutex::new(None),
+            http,
+            runtime,
+            cache_dir,
+        });
+        let cleanup = Arc::clone(&inner);
+        inner.runtime.spawn_blocking(move || {
+            if let Err(error) = cleanup.trim_disk_cache(DISK_BYTES, None) {
+                log::debug!("artwork cache cleanup skipped: {error}");
+            }
+        });
+        Self { inner }
     }
 
     /// Bytes for `url`, from memory, disk, or the network.
@@ -126,6 +147,18 @@ impl ArtLoader {
             .then_some(path)
     }
 
+    /// Keep the file handed to desktop media controls through disk eviction.
+    pub fn set_media_art_file(&self, file: Option<&Path>) {
+        let mut current = self
+            .inner
+            .media_art_file
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        if current.as_deref() != file {
+            *current = file.map(Path::to_path_buf);
+        }
+    }
+
     /// Drops held JPEG bytes once egui has made a texture. The disk cache
     /// remains for later reloads.
     pub fn release_bytes(&self, url: &str) {
@@ -149,6 +182,7 @@ impl ArtLoader {
     }
 
     pub fn clear_disk_cache(&self) -> std::io::Result<u64> {
+        let mut disk = self.inner.disk.lock().unwrap_or_else(|p| p.into_inner());
         let mut removed = 0;
         for entry in std::fs::read_dir(&self.inner.cache_dir)? {
             let entry = entry?;
@@ -157,6 +191,7 @@ impl ArtLoader {
                 let _ = std::fs::remove_file(entry.path());
             }
         }
+        disk.bytes = None;
         Ok(removed)
     }
 }
@@ -198,6 +233,116 @@ impl Inner {
         self.cache_dir.join(name)
     }
 
+    fn fetch_flight(&self, url: &str) -> Arc<FetchFlight> {
+        let mut flights = self.flights.lock().unwrap_or_else(|p| p.into_inner());
+        if flights.len() >= 1024 {
+            flights.retain(|_, flight| flight.strong_count() > 0);
+        }
+        if let Some(flight) = flights.get(url).and_then(Weak::upgrade) {
+            return flight;
+        }
+        let flight = Arc::new(FetchFlight::new(None));
+        flights.insert(url.to_owned(), Arc::downgrade(&flight));
+        flight
+    }
+
+    fn trim_disk_cache(&self, budget: u64, writing: Option<&Path>) -> std::io::Result<()> {
+        let mut disk = self.disk.lock().unwrap_or_else(|p| p.into_inner());
+        self.trim_disk_cache_locked(&mut disk, budget, writing)
+    }
+
+    fn trim_disk_cache_locked(
+        &self,
+        disk: &mut DiskState,
+        budget: u64,
+        writing: Option<&Path>,
+    ) -> std::io::Result<()> {
+        let mut files = Vec::new();
+        let mut total = 0u64;
+        for entry in std::fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.strip_suffix(".part").is_some_and(|stem| {
+                stem.len() == 40 && stem.bytes().all(|byte| byte.is_ascii_hexdigit())
+            }) {
+                let _ = std::fs::remove_file(entry.path());
+                continue;
+            }
+            if name.len() != 40 || !name.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                continue;
+            }
+            let metadata = entry.metadata()?;
+            if !metadata.is_file() {
+                continue;
+            }
+            total = total.saturating_add(metadata.len());
+            files.push((
+                entry.path(),
+                metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+                metadata.len(),
+            ));
+        }
+        if total > budget {
+            let mut protected = std::collections::HashSet::new();
+            for (url, entry) in self
+                .entries
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .iter()
+            {
+                if !matches!(entry, Entry::Failed(_)) {
+                    protected
+                        .insert(self.cache_path(url.strip_prefix(BLURRED_PREFIX).unwrap_or(url)));
+                }
+            }
+            if let Some(path) = self
+                .media_art_file
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .as_ref()
+            {
+                protected.insert(path.clone());
+            }
+            if let Some(path) = writing {
+                protected.insert(path.to_path_buf());
+            }
+            files.sort_by_key(|(_, modified, _)| *modified);
+            for (path, _, bytes) in files {
+                if total <= budget {
+                    break;
+                }
+                if !protected.contains(&path) && std::fs::remove_file(&path).is_ok() {
+                    total = total.saturating_sub(bytes);
+                }
+            }
+        }
+        disk.bytes = Some(total);
+        Ok(())
+    }
+
+    fn write_cache(&self, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+        let mut disk = self.disk.lock().unwrap_or_else(|p| p.into_inner());
+        let previous = std::fs::metadata(path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        let temporary = path.with_extension("part");
+        std::fs::write(&temporary, bytes)?;
+        if let Err(error) = crate::util::replace_file(&temporary, path) {
+            let _ = std::fs::remove_file(&temporary);
+            return Err(error);
+        }
+        disk.bytes = disk.bytes.map(|total| {
+            total
+                .saturating_sub(previous)
+                .saturating_add(bytes.len() as u64)
+        });
+        if disk.bytes.is_none_or(|total| total > DISK_BYTES) {
+            self.trim_disk_cache_locked(&mut disk, DISK_BYTES, Some(path))?;
+        }
+        Ok(())
+    }
+
     async fn fetch(self: &Arc<Self>, url: &str) -> Result<Arc<[u8]>, String> {
         if let Some(source) = url.strip_prefix(BLURRED_PREFIX) {
             let bytes = self.fetch_original(source).await?;
@@ -219,6 +364,17 @@ impl Inner {
         {
             return Ok(Arc::clone(bytes));
         }
+        let flight = self.fetch_flight(url);
+        let mut result = flight.lock().await;
+        if let Some(cached) = result.as_ref() {
+            return cached.clone();
+        }
+        let fetched = self.fetch_original_uncached(url).await;
+        *result = Some(fetched.clone());
+        fetched
+    }
+
+    async fn fetch_original_uncached(self: &Arc<Self>, url: &str) -> FetchResult {
         let path = self.cache_path(url);
         let cached = tokio::task::spawn_blocking({
             let path = path.clone();
@@ -228,7 +384,7 @@ impl Inner {
         .ok()
         .flatten();
         let bytes: Vec<u8> = match cached {
-            Some(bytes) if !bytes.is_empty() => bytes,
+            Some(bytes) if !bytes.is_empty() && bytes.len() <= MAX_ART_BYTES => bytes,
             _ => {
                 let response = self
                     .http
@@ -244,14 +400,17 @@ impl Inner {
                     return Err("artwork is too large".to_string());
                 }
                 let bytes = bytes.to_vec();
-                let write_path = path.clone();
+                let loader = Arc::clone(self);
                 let payload = bytes.clone();
-                self.runtime.spawn_blocking(move || {
-                    let temporary = write_path.with_extension("part");
-                    if std::fs::write(&temporary, &payload).is_ok() {
-                        let _ = std::fs::rename(&temporary, &write_path);
-                    }
-                });
+                if let Err(error) = self
+                    .runtime
+                    .spawn_blocking(move || loader.write_cache(&path, &payload))
+                    .await
+                    .map_err(|error| error.to_string())
+                    .and_then(|result| result.map_err(|error| error.to_string()))
+                {
+                    log::debug!("unable to cache artwork: {error}");
+                }
                 bytes
             }
         };
@@ -423,7 +582,120 @@ pub fn accent_color(bytes: &[u8]) -> Option<[u8; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Duration;
+
+    #[test]
+    fn disk_cleanup_preserves_media_art_and_removes_partial_writes() {
+        let dir = std::env::temp_dir().join(format!(
+            "magicspot-art-disk-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let loader = ArtLoader::new(
+            reqwest::Client::new(),
+            runtime.handle().clone(),
+            dir.clone(),
+        );
+        let paths: Vec<_> = (0..3)
+            .map(|index| {
+                loader
+                    .inner
+                    .cache_path(&format!("https://example.test/{index}"))
+            })
+            .collect();
+        for path in &paths {
+            std::fs::write(path, b"123456").unwrap();
+        }
+        let partial = paths[2].with_extension("part");
+        std::fs::write(&partial, b"incomplete").unwrap();
+        loader.set_media_art_file(Some(&paths[0]));
+
+        loader.inner.trim_disk_cache(10, None).unwrap();
+
+        assert!(paths[0].exists(), "the media-control image must remain");
+        assert!(!partial.exists(), "unfinished writes must be removed");
+        let remaining: u64 = paths
+            .iter()
+            .filter_map(|path| std::fs::metadata(path).ok())
+            .map(|metadata| metadata.len())
+            .sum();
+        assert!(remaining <= 10, "cache stayed above its budget");
+        drop(loader);
+        drop(runtime);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_direct_fetches_share_one_request() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let hits = Arc::new(AtomicUsize::new(0));
+        let done = Arc::new(AtomicBool::new(false));
+        let server_hits = Arc::clone(&hits);
+        let server_done = Arc::clone(&done);
+        let server = std::thread::spawn(move || {
+            while !server_done.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        server_hits.fetch_add(1, Ordering::Relaxed);
+                        let mut request = [0; 1024];
+                        let _ = stream.read(&mut request);
+                        std::thread::sleep(Duration::from_millis(60));
+                        let _ = stream.write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nART!",
+                        );
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("artwork test server failed: {error}"),
+                }
+            }
+        });
+        let dir = std::env::temp_dir().join(format!(
+            "magicspot-art-flight-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let loader = ArtLoader::new(
+            reqwest::Client::new(),
+            tokio::runtime::Handle::current(),
+            dir.clone(),
+        );
+        let url = format!("http://{address}/cover");
+        let barrier = Arc::new(tokio::sync::Barrier::new(9));
+        let mut calls = tokio::task::JoinSet::new();
+        for _ in 0..8 {
+            let loader = loader.clone();
+            let barrier = Arc::clone(&barrier);
+            let url = url.clone();
+            calls.spawn(async move {
+                barrier.wait().await;
+                loader.fetch(&url).await
+            });
+        }
+        barrier.wait().await;
+        while let Some(call) = calls.join_next().await {
+            assert_eq!(&*call.unwrap().unwrap(), b"ART!");
+        }
+        done.store(true, Ordering::Relaxed);
+        server.join().unwrap();
+        assert_eq!(hits.load(Ordering::Relaxed), 1);
+        assert!(loader.cached_file(&url).is_some());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     /// The media controls ask for a file rather than a URL, and have to be
     /// told "not yet" rather than handed a path to nothing: macOS loads cover

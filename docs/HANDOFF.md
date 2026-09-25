@@ -9,11 +9,11 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v2.0.0**, covering album and playlist
-  loading, cold playback startup, backend responsiveness, API decode timing,
-  and media-control update costs. Formatting, all 302 demo tests, strict
-  Clippy, the release build, and cross-platform CI passed. The Windows
-  installer, portable ZIP, universal macOS DMG, and checksums are published.
+- The latest user release is **v2.0.1**, adding album, playlist, and startup
+  timing markers, a timing summary script, a 512 MiB artwork disk-cache target,
+  and shared concurrent artwork fetches. Formatting, all 304 demo tests,
+  strict Clippy, and the release build passed. Real cold/warm performance
+  comparison remains pending because Spotify rate-limited the first live run.
 - Windows and macOS packaging are manual GitHub Actions jobs. A complete
   published release includes the Windows installer and portable ZIP, a
   universal macOS DMG, checksum files, and GitHub source archives.
@@ -283,5 +283,6 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The v2.0.0 release and validation are complete. Continue stabilization from
-user feedback and real-account testing.
+The v2.0.1 release contains the measured-work tooling and artwork cache work.
+Complete real-account cold/warm comparisons when Spotify requests are no
+longer throttled; then profile Home, search, and large libraries.

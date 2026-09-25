@@ -161,6 +161,19 @@ struct Listening {
     recorded: bool,
 }
 
+const PAGE_METADATA_RESPONSE: u8 = 1 << 0;
+const PAGE_FIRST_PAGE_RESPONSE: u8 = 1 << 1;
+const PAGE_HEADER_FRAME: u8 = 1 << 2;
+const PAGE_ROWS_FRAME: u8 = 1 << 3;
+
+/// One album or playlist navigation. Only its category and timings are logged.
+struct PageTiming {
+    page: Page,
+    id: u64,
+    started: Instant,
+    seen: u8,
+}
+
 pub struct App {
     pub dirs: AppDirs,
     pub settings: Settings,
@@ -260,6 +273,8 @@ pub struct App {
     pub search: SearchState,
     pub playlist_pages: HashMap<String, PlaylistPage>,
     load_generation: u64,
+    page_timing: Option<PageTiming>,
+    next_page_timing_id: u64,
     pub album_pages: HashMap<String, AlbumPage>,
     pub artist_pages: HashMap<String, ArtistPage>,
     pub show_pages: HashMap<String, ShowPage>,
@@ -568,6 +583,8 @@ impl App {
             search: SearchState::default(),
             playlist_pages: HashMap::new(),
             load_generation: 0,
+            page_timing: None,
+            next_page_timing_id: 0,
             album_pages: HashMap::new(),
             artist_pages: HashMap::new(),
             show_pages: HashMap::new(),
@@ -1377,7 +1394,9 @@ impl App {
                 self.sign_in_url = None;
                 self.reset_data();
                 self.load_playlists();
-                self.ensure_loaded(self.page().clone());
+                let page = self.page().clone();
+                self.start_page_timing(&page, "restore");
+                self.ensure_loaded(page);
                 self.poll_remote(true);
             }
             AuthStatus::WaitingForBrowser { url } => self.sign_in_url = Some(url.clone()),
@@ -2164,6 +2183,7 @@ impl App {
             .as_ref()
             .and_then(|now| now.art_url.as_deref())
             .and_then(|url| self.media_art_file(url));
+        self.backend.art().set_media_art_file(art_file.as_deref());
         let state = match &now {
             Some(now) => MediaState {
                 playback: if now.playing {
@@ -3597,6 +3617,13 @@ impl App {
                     }
                     return;
                 }
+                if result.is_ok() {
+                    self.note_page_timing(
+                        &Page::Playlist(id.clone()),
+                        PAGE_METADATA_RESPONSE,
+                        "metadata_response",
+                    );
+                }
                 if let Ok(playlist) = &result
                     && let Some(image) = pick_image(&playlist.images, 300)
                 {
@@ -3637,6 +3664,13 @@ impl App {
                     .is_none_or(|page| page.generation != generation)
                 {
                     return;
+                }
+                if offset == 0 && result.is_ok() {
+                    self.note_page_timing(
+                        &Page::Playlist(id.clone()),
+                        PAGE_FIRST_PAGE_RESPONSE,
+                        "first_page_response",
+                    );
                 }
                 let mut uris = Vec::new();
                 let mut adders: Vec<String> = Vec::new();
@@ -4088,6 +4122,17 @@ impl App {
             }
             ApiResponse::Album { id, result } => {
                 let mut uris = Vec::new();
+                if let Ok(album) = &result {
+                    let page = Page::Album(id.clone());
+                    self.note_page_timing(&page, PAGE_METADATA_RESPONSE, "metadata_response");
+                    if album.tracks.is_some() {
+                        self.note_page_timing(
+                            &page,
+                            PAGE_FIRST_PAGE_RESPONSE,
+                            "first_page_response",
+                        );
+                    }
+                }
                 if let Ok(album) = &result
                     && let Some(image) = pick_image(&album.images, 300)
                 {
@@ -4113,6 +4158,13 @@ impl App {
             }
             ApiResponse::AlbumTracks { id, offset, result } => {
                 let mut uris = Vec::new();
+                if offset == 0 && result.is_ok() {
+                    self.note_page_timing(
+                        &Page::Album(id.clone()),
+                        PAGE_FIRST_PAGE_RESPONSE,
+                        "first_page_response",
+                    );
+                }
                 if let Some(page) = self.album_pages.get_mut(&id) {
                     match result {
                         Ok(tracks) => {
@@ -4251,6 +4303,86 @@ impl App {
 
     // ---- navigation ------------------------------------------------------------
 
+    fn start_page_timing(&mut self, page: &Page, source: &'static str) {
+        if !log::log_enabled!(target: "magicspot::page_timing", log::Level::Debug) {
+            self.page_timing = None;
+            return;
+        }
+        let (kind, warm_header, warm_rows) = match page {
+            Page::Album(id) => {
+                let cached = self.album_pages.get(id);
+                (
+                    "album",
+                    cached.is_some_and(|page| page.album.get().is_some()),
+                    cached.is_some_and(|page| page.tracks.loaded_once),
+                )
+            }
+            Page::Playlist(id) => {
+                let cached = self.playlist_pages.get(id);
+                (
+                    "playlist",
+                    cached.is_some_and(|page| page.playlist.get().is_some()),
+                    cached.is_some_and(|page| page.items.loaded_once),
+                )
+            }
+            _ => {
+                self.page_timing = None;
+                return;
+            }
+        };
+        self.next_page_timing_id = self.next_page_timing_id.wrapping_add(1);
+        let id = self.next_page_timing_id;
+        self.page_timing = Some(PageTiming {
+            page: page.clone(),
+            id,
+            started: Instant::now(),
+            seen: 0,
+        });
+        log::debug!(
+            target: "magicspot::page_timing",
+            "page timing #{id} start kind={kind} source={source} warm_header={warm_header} warm_rows={warm_rows}"
+        );
+    }
+
+    fn note_page_timing(&mut self, page: &Page, bit: u8, milestone: &'static str) {
+        let Some(timing) = self.page_timing.as_mut() else {
+            return;
+        };
+        if timing.page != *page || timing.seen & bit != 0 {
+            return;
+        }
+        timing.seen |= bit;
+        log::debug!(
+            target: "magicspot::page_timing",
+            "page timing #{} {milestone}_ms={}",
+            timing.id,
+            timing.started.elapsed().as_millis()
+        );
+    }
+
+    /// Called after egui has built the page's first useful UI frame.
+    fn note_page_frame(&mut self) {
+        let page = self.page().clone();
+        let (header, rows) = match &page {
+            Page::Album(id) => self.album_pages.get(id).map_or((false, false), |detail| {
+                (detail.album.get().is_some(), detail.tracks.loaded_once)
+            }),
+            Page::Playlist(id) => self
+                .playlist_pages
+                .get(id)
+                .map_or((false, false), |detail| {
+                    (detail.playlist.get().is_some(), detail.items.loaded_once)
+                }),
+            _ => return,
+        };
+        if header {
+            self.note_page_timing(&page, PAGE_HEADER_FRAME, "header_frame");
+        }
+        if rows {
+            self.note_page_timing(&page, PAGE_ROWS_FRAME, "rows_frame");
+        }
+    }
+
     pub fn open(&mut self, page: Page) {
         self.discard_theme_preview_before(&page);
         self.touch_page(&page);
@@ -4266,6 +4398,7 @@ impl App {
         }
         self.history_index = self.history.len() - 1;
         self.show_devices = false;
+        self.start_page_timing(&page, "open");
         self.ensure_loaded(page.clone());
         self.retain_table_rows(&page);
         self.evict_stale_pages();
@@ -5454,6 +5587,7 @@ impl App {
                     self.history_index -= 1;
                     let page = self.page().clone();
                     self.touch_page(&page);
+                    self.start_page_timing(&page, "back");
                     self.ensure_loaded(page.clone());
                     self.retain_table_rows(&page);
                     self.evict_stale_pages();
@@ -5466,6 +5600,7 @@ impl App {
                     self.history_index += 1;
                     let page = self.page().clone();
                     self.touch_page(&page);
+                    self.start_page_timing(&page, "forward");
                     self.ensure_loaded(page.clone());
                     self.retain_table_rows(&page);
                     self.evict_stale_pages();
@@ -6322,6 +6457,7 @@ impl App {
         self.apply_theme(ctx);
         self.lock_scroll_axis(ctx);
         crate::ui::show(self, ui);
+        self.note_page_frame();
         self.apply_actions(ctx);
         self.refresh_frame_now();
         self.sync_media_controls();
