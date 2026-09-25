@@ -793,6 +793,8 @@ struct Worker {
     resume: Option<LoadSpec>,
     /// A pickup in flight: the load to repeat and how often it was tried.
     resume_verify: Option<(LoadSpec, u8)>,
+    /// Cache writes stay ordered without holding up playback commands.
+    playlist_cache_write: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Worker {
@@ -829,6 +831,7 @@ impl Worker {
             reconnects: Vec::new(),
             resume: None,
             resume_verify: None,
+            playlist_cache_write: None,
         }
     }
 
@@ -926,15 +929,15 @@ impl Worker {
                     items,
                     total,
                     next_offset,
-                } => {
-                    self.store_playlist_cache(id, snapshot, items, total, next_offset)
-                        .await
-                }
+                } => self.store_playlist_cache(id, snapshot, items, total, next_offset),
                 Command::UserNames(ids) => self.fetch_user_names(ids),
                 Command::ConfigurePersonalWebApp(client_id) => {
                     self.configure_personal_web_app(client_id)
                 }
             }
+        }
+        if let Some(write) = self.playlist_cache_write.take() {
+            let _ = write.await;
         }
         if let Some(engine) = self.engine.take() {
             engine.shutdown();
@@ -1638,8 +1641,8 @@ impl Worker {
         });
     }
 
-    async fn store_playlist_cache(
-        &self,
+    fn store_playlist_cache(
+        &mut self,
         id: String,
         snapshot: String,
         items: Vec<PlaylistItem>,
@@ -1659,9 +1662,24 @@ impl Worker {
             total: Some(total),
             next_offset,
         };
-        if let Err(error) = write_cached_playlist(&path, &cached).await {
-            log::warn!("unable to store playlist cache {}: {error}", path.display());
-        }
+        let previous = self.playlist_cache_write.take();
+        self.playlist_cache_write = Some(tokio::spawn(async move {
+            if let Some(previous) = previous {
+                let _ = previous.await;
+            }
+            let written = tokio::task::spawn_blocking(move || {
+                let result = write_cached_playlist(&path, &cached);
+                (path, result)
+            })
+            .await;
+            match written {
+                Ok((path, Err(error))) => {
+                    log::warn!("unable to store playlist cache {}: {error}", path.display());
+                }
+                Err(error) => log::warn!("playlist cache write task failed: {error}"),
+                Ok((_, Ok(()))) => {}
+            }
+        }));
     }
 
     /// Ask Spotify who is behind each user id. Only the streaming session
@@ -1673,11 +1691,21 @@ impl Worker {
         let events = self.events.clone();
         let waker = self.waker.clone();
         tokio::spawn(async move {
+            let mut pending = tokio::task::JoinSet::new();
             for id in ids {
-                let name = engine.user_display_name(&id).await;
-                let _ = events.send(Event::UserName { id, name });
-                waker.wake();
+                let engine = Arc::clone(&engine);
+                let events = events.clone();
+                let waker = waker.clone();
+                pending.spawn(async move {
+                    let name = engine.user_display_name(&id).await;
+                    let _ = events.send(Event::UserName { id, name });
+                    waker.wake();
+                });
+                if pending.len() >= 4 {
+                    let _ = pending.join_next().await;
+                }
             }
+            while pending.join_next().await.is_some() {}
         });
     }
 
@@ -2217,16 +2245,13 @@ struct CachedPlaylist {
     next_offset: Option<u32>,
 }
 
-async fn write_cached_playlist(
-    path: &std::path::Path,
-    cached: &CachedPlaylist,
-) -> std::io::Result<()> {
+fn write_cached_playlist(path: &std::path::Path, cached: &CachedPlaylist) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
+        std::fs::create_dir_all(parent)?;
     }
     let text = serde_json::to_vec(cached).map_err(std::io::Error::other)?;
     let temporary = path.with_extension("json.tmp");
-    tokio::fs::write(&temporary, text).await?;
+    std::fs::write(&temporary, text)?;
     crate::util::replace_file(&temporary, path)
 }
 
@@ -2244,8 +2269,8 @@ mod playlist_cache_tests {
         assert_eq!(cached.next_offset, None);
     }
 
-    #[tokio::test]
-    async fn a_new_checkpoint_atomically_replaces_the_previous_one() {
+    #[test]
+    fn a_new_checkpoint_atomically_replaces_the_previous_one() {
         let root = std::env::temp_dir().join(format!(
             "magicspot-playlist-cache-test-{}-{:?}",
             std::process::id(),
@@ -2259,14 +2284,10 @@ mod playlist_cache_tests {
             next_offset: Some(500),
         };
 
-        write_cached_playlist(&path, &cached("first"))
-            .await
-            .unwrap();
-        write_cached_playlist(&path, &cached("second"))
-            .await
-            .unwrap();
+        write_cached_playlist(&path, &cached("first")).unwrap();
+        write_cached_playlist(&path, &cached("second")).unwrap();
 
-        let text = tokio::fs::read_to_string(&path).await.unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
         let stored: CachedPlaylist = serde_json::from_str(&text).unwrap();
         assert_eq!(stored.snapshot, "second");
         assert!(!path.with_extension("json.tmp").exists());

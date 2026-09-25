@@ -8,7 +8,7 @@ use egui::Color32;
 
 use crate::api::PlayRequest;
 use crate::api::models::{
-    ArtistRef, Device, PlayableItem, PlaybackState, Playlist, PlaylistItem, Queue, Track,
+    Album, ArtistRef, Device, PlayableItem, PlaybackState, Playlist, PlaylistItem, Queue, Track,
     TrackCount, User, UserRef, pick_image,
 };
 use crate::backend::{
@@ -2159,11 +2159,12 @@ impl App {
     }
 
     fn sync_media_controls(&mut self) {
-        let art_file = self
-            .now_playing()
-            .and_then(|now| now.art_url)
-            .and_then(|url| self.media_art_file(&url));
-        let state = match self.now_playing() {
+        let now = self.now_playing();
+        let art_file = now
+            .as_ref()
+            .and_then(|now| now.art_url.as_deref())
+            .and_then(|url| self.media_art_file(url));
+        let state = match &now {
             Some(now) => MediaState {
                 playback: if now.playing {
                     Playback::Playing
@@ -2196,12 +2197,12 @@ impl App {
         if let Some(controls) = &mut self.media_controls {
             controls.update(state);
         }
-        let playing = self.now_playing().is_some_and(|now| now.playing);
+        let playing = now.as_ref().is_some_and(|now| now.playing);
         if let Some(tray) = &mut self.tray {
             tray.set_playing(playing);
         }
         if let Some(slot) = &self.control_now_playing {
-            let snapshot = self.control_snapshot();
+            let snapshot = self.control_snapshot_for(now.as_ref());
             *slot.lock().unwrap_or_else(|p| p.into_inner()) = snapshot;
         }
         if self.control_devices_stale
@@ -2222,8 +2223,8 @@ impl App {
     /// not: something to draw, whether the heart is filled, and where the
     /// sound is coming out. They are appended rather than woven in, so a
     /// script written against the older nine fields still reads correctly.
-    fn control_snapshot(&self) -> String {
-        let Some(now) = self.now_playing() else {
+    fn control_snapshot_for(&self, now: Option<&NowPlaying>) -> String {
+        let Some(now) = now else {
             return crate::single_instance::NOTHING_PLAYING.to_owned();
         };
         let state = if now.playing { "playing" } else { "paused" };
@@ -2297,6 +2298,58 @@ impl App {
         self.backend.api(ApiRequest::MyPlaylists { offset: 0 });
     }
 
+    /// Reuse metadata already shown on a card while the detail request runs.
+    fn known_playlist(&self, id: &str) -> Option<Playlist> {
+        self.library
+            .playlists
+            .get()
+            .and_then(|playlists| playlists.iter().find(|playlist| playlist.id == id))
+            .or_else(|| {
+                self.search
+                    .results
+                    .get()?
+                    .playlists
+                    .as_ref()?
+                    .items
+                    .iter()
+                    .find(|playlist| playlist.id == id)
+            })
+            .or_else(|| {
+                self.home
+                    .discover
+                    .values()
+                    .find_map(|result| result.get()?.iter().find(|playlist| playlist.id == id))
+            })
+            .cloned()
+    }
+
+    fn known_album(&self, id: &str) -> Option<Album> {
+        self.library
+            .albums
+            .items
+            .iter()
+            .find(|saved| saved.album.id == id)
+            .map(|saved| &saved.album)
+            .or_else(|| {
+                self.search
+                    .results
+                    .get()?
+                    .albums
+                    .as_ref()?
+                    .items
+                    .iter()
+                    .find(|album| album.id == id)
+            })
+            .or_else(|| {
+                self.artist_pages.values().find_map(|page| {
+                    page.albums
+                        .values()
+                        .find_map(|albums| albums.items.iter().find(|album| album.id == id))
+                })
+            })
+            .cloned()
+    }
+
     pub fn ensure_loaded(&mut self, page: Page) {
         if !self.is_connected() {
             return;
@@ -2335,17 +2388,24 @@ impl App {
                     .playlist_pages
                     .get(&id)
                     .is_none_or(|page| page.generation == 0);
+                let known = needs_generation.then(|| self.known_playlist(&id)).flatten();
                 if needs_generation {
                     self.load_generation += 1;
-                    self.playlist_pages
-                        .entry(id.clone())
-                        .or_default()
-                        .generation = self.load_generation;
+                    let page = self.playlist_pages.entry(id.clone()).or_default();
+                    page.generation = self.load_generation;
+                    if let Some(mut playlist) = known {
+                        // A library card can predate a playlist edit. Only a
+                        // live detail response may validate disk-cached rows.
+                        playlist.snapshot_id = None;
+                        page.playlist = Loadable::Loaded(playlist);
+                    }
                 }
                 let page = self.playlist_pages.entry(id.clone()).or_default();
                 let generation = page.generation;
-                if page.playlist.needs_load() {
-                    page.playlist = Loadable::Loading;
+                if needs_generation || page.playlist.needs_load() {
+                    if page.playlist.get().is_none() {
+                        page.playlist = Loadable::Loading;
+                    }
                     self.backend.api(ApiRequest::Playlist {
                         id: id.clone(),
                         generation,
@@ -2370,13 +2430,20 @@ impl App {
             Page::Album(id) => {
                 if !self.album_pages.contains_key(&id) {
                     self.load_generation = self.load_generation.wrapping_add(1);
-                    self.album_pages.insert(
-                        id.clone(),
-                        AlbumPage {
-                            generation: self.load_generation,
-                            ..Default::default()
-                        },
-                    );
+                    let mut page = AlbumPage {
+                        generation: self.load_generation,
+                        ..Default::default()
+                    };
+                    if let Some(mut album) = self.known_album(&id) {
+                        if let Some(tracks) = album.tracks.take() {
+                            page.tracks.absorb(0, tracks);
+                        }
+                        page.album = Loadable::Loaded(album);
+                    } else {
+                        page.album = Loadable::Loading;
+                    }
+                    self.album_pages.insert(id.clone(), page);
+                    self.backend.api(ApiRequest::Album { id: id.clone() });
                 }
                 let page = self.album_pages.entry(id.clone()).or_default();
                 if page.album.needs_load() {
@@ -4039,7 +4106,7 @@ impl App {
                                 self.backend.api(ApiRequest::AlbumTracks { id, offset: 0 });
                             }
                         }
-                        Err(error) => page.album = Loadable::Failed(error.to_string()),
+                        Err(error) => page.album.refresh(Err(error)),
                     }
                 }
                 self.request_contains(uris);
@@ -8188,6 +8255,77 @@ mod tests {
     }
 
     #[test]
+    fn playlist_detail_starts_with_library_metadata() {
+        let mut app = headless_app();
+        app.auth = AuthStatus::Connected {
+            username: "listener".into(),
+        };
+        app.backend.set_offline(true);
+        app.library.playlists = Loadable::Loaded(vec![Playlist {
+            id: "known".into(),
+            name: "Ready header".into(),
+            uri: "spotify:playlist:known".into(),
+            snapshot_id: Some("possibly-stale".into()),
+            ..Default::default()
+        }]);
+
+        app.ensure_loaded(Page::Playlist("known".into()));
+
+        let page = &app.playlist_pages["known"];
+        assert_eq!(
+            page.playlist.get().map(|playlist| playlist.name.as_str()),
+            Some("Ready header")
+        );
+        assert_eq!(
+            page.playlist
+                .get()
+                .and_then(|playlist| playlist.snapshot_id.as_deref()),
+            None
+        );
+        assert!(page.items.loading);
+        assert_eq!(app.backend.take_playlist_item_requests().len(), 1);
+    }
+
+    #[test]
+    fn album_detail_starts_with_saved_metadata_and_tracks() {
+        let mut app = headless_app();
+        app.auth = AuthStatus::Connected {
+            username: "listener".into(),
+        };
+        app.backend.set_offline(true);
+        app.library
+            .albums
+            .items
+            .push(crate::api::models::SavedAlbum {
+                album: Album {
+                    id: "known".into(),
+                    name: "Ready album".into(),
+                    uri: "spotify:album:known".into(),
+                    tracks: Some(crate::api::models::Page {
+                        items: vec![Track {
+                            uri: "spotify:track:first".into(),
+                            ..Default::default()
+                        }],
+                        total: 1,
+                        limit: 20,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+
+        app.ensure_loaded(Page::Album("known".into()));
+
+        let page = &app.album_pages["known"];
+        assert_eq!(
+            page.album.get().map(|album| album.name.as_str()),
+            Some("Ready album")
+        );
+        assert_eq!(page.tracks.items[0].uri, "spotify:track:first");
+    }
+
+    #[test]
     fn two_toggle_play_actions_in_one_batch_return_to_playing() {
         let mut app = headless_app();
         let ctx = egui::Context::default();
@@ -9413,7 +9551,7 @@ mod tests {
         });
 
         // #when
-        let snapshot = app.control_snapshot();
+        let snapshot = app.control_snapshot_for(app.now_playing().as_ref());
         let fields: Vec<&str> = snapshot.split('\t').collect();
 
         // #then

@@ -342,6 +342,7 @@ pub struct MediaService {
     /// Where updates go, and the thread to wake for them; `None` when the
     /// controls could not be made.
     updates: Option<(Sender<Update>, u32)>,
+    published: Option<MediaState>,
 }
 
 #[cfg(windows)]
@@ -356,7 +357,11 @@ impl MediaService {
                 None
             }
         };
-        Self { commands, updates }
+        Self {
+            commands,
+            updates,
+            published: None,
+        }
     }
 
     pub fn drain_commands(&self) -> Vec<MediaCommand> {
@@ -364,7 +369,19 @@ impl MediaService {
     }
 
     pub fn update(&mut self, state: MediaState) {
-        self.send(Update::State(state));
+        if self
+            .published
+            .as_ref()
+            .is_some_and(|published| published.same_except_position(&state))
+        {
+            return;
+        }
+        if let Some((updates, thread_id)) = &self.updates
+            && updates.send(Update::State(state.clone())).is_ok()
+        {
+            self.published = Some(state);
+            host::poke(*thread_id);
+        }
     }
 
     pub fn seeked(&self, position_ms: u32) {

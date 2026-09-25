@@ -14,15 +14,16 @@ release direction.
 
 ## Current status
 
-MagicSpot 1.0.1 is the current milestone release. It remains an early
+MagicSpot 2.0.0 is the prepared milestone release. It remains an early
 personal project, and Spotify Premium is required for local playback through
 librespot. MagicSpot is not affiliated with or endorsed by Spotify.
 
-MagicSpot incrementally streams audio into the decoder and preloads the next
-queued track with a playback cushion. Queued skips are therefore normally
-near-instant once preloading completes. A truly cold, uncached start can still
-vary with Spotify's CDN response; the Spotify Web API Client ID does not
-control that audio path.
+MagicSpot incrementally streams audio into the decoder, overlaps independent
+cold playback setup, and preloads the next queued track with a playback
+cushion. Album and playlist pages can show known details while fresh data
+loads. Queued skips are normally near-instant once preloading completes. A
+truly cold, uncached start can still vary with Spotify's CDN response; the
+Spotify Web API Client ID does not control that audio path.
 
 ## What is different
 

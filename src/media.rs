@@ -64,3 +64,16 @@ impl Default for MediaState {
         }
     }
 }
+
+impl MediaState {
+    /// A position change alone does not require a new metadata publication.
+    /// System media clients interpolate progress while a track is playing.
+    pub(crate) fn same_except_position(&self, other: &Self) -> bool {
+        self.playback == other.playback
+            && self.track == other.track
+            && (self.volume - other.volume).abs() < 0.005
+            && self.shuffle == other.shuffle
+            && self.repeat == other.repeat
+            && self.can_control == other.can_control
+    }
+}

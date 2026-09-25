@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-20. This is the starting point for a new maintainer, coding
+Updated 2026-09-25. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -9,16 +9,14 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v1.0.1**. It adds incremental CDN streaming,
-  earlier next-track preloading with a playback cushion, and duplicate-load
-  suppression while preserving the v1.0.0 authorization and reconnect
-  hardening.
-- The v1.0.1 release was validated with formatting, the complete demo-feature
-  test suite (295 library tests and 5 binary tests), strict Clippy, and a
-  normal release build. Windows and macOS packaging are manual GitHub Actions
-  jobs and publish assets to the existing tag. Its published downloads are the
-  Windows installer, portable ZIP, universal macOS DMG, and their checksum
-  files; GitHub also supplies source archives for the tag.
+- The latest requested release is **v2.0.0**, covering album and playlist
+  loading, cold playback startup, backend responsiveness, API decode timing,
+  and media-control update costs. Local formatting, tests, strict Clippy, and
+  a release build passed; the GitHub tag and platform packages are still
+  pending publication.
+- Windows and macOS packaging are manual GitHub Actions jobs. A complete
+  published release includes the Windows installer and portable ZIP, a
+  universal macOS DMG, checksum files, and GitHub source archives.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
@@ -209,11 +207,12 @@ MagicSpot has a release checker, not an installer updater. Checks default to
 off; when enabled they query GitHub at most once per day and open the release
 page for a newer version.
 
-The current release incrementally exposes CDN bytes to the decoder and starts
-next-track preloading after five seconds of current-track download headroom.
-Once that preload has a five-second playback cushion, queued skips should be
-near-instant. Truly cold loads and skips made before the cushion is ready can
-still vary with Spotify's CDN response. Use `magicspot --verbose` and the
+The release incrementally exposes CDN bytes to the decoder, overlaps cold
+audio-file and audio-key setup, and starts next-track preloading after five
+seconds of current-track download headroom. Once that preload has a five-second
+playback cushion, queued skips should be near-instant. Truly cold loads and
+skips made before the cushion is ready can still vary with Spotify's CDN
+response. Use `magicspot --verbose` and the
 `magicspot::playback_timing` log entries to distinguish track loading, output
 opening, decoder startup, preloading, and audio-queue starvation.
 
@@ -270,7 +269,7 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Exercise the v1.0.1 connection, playback authorization, custom theme, and
+- Exercise the v2.0.0 connection, playback authorization, custom theme, and
   local playback flows across varied real Spotify accounts and devices.
 - Continue profiling genuinely cold CDN starts and skips issued before the
   preload cushion is ready; preserve the new fast queued-transition path.
@@ -284,5 +283,5 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The requested v1.0.1 implementation and local validation are complete.
-Continue stabilization from user feedback and real-account testing.
+The v2.0.0 implementation and local validation are complete. Continue release
+publication and stabilization from user feedback and real-account testing.

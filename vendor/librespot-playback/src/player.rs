@@ -1096,9 +1096,15 @@ impl PlayerTrackLoader {
         // This is only a loop to be able to reload the file if an error occurred
         // while opening a cached file.
         loop {
-            let encrypted_file = AudioFile::open(&self.session, file_id, bytes_per_second);
+            // CDN setup and the audio-key request use separate Spotify services.
+            // Start both together so a cold track does not pay their network
+            // round trips one after the other.
+            let (encrypted_file, key_result) = tokio::join!(
+                AudioFile::open(&self.session, file_id, bytes_per_second),
+                self.session.audio_key().request(track_id, file_id)
+            );
 
-            let encrypted_file = match encrypted_file.await {
+            let encrypted_file = match encrypted_file {
                 Ok(encrypted_file) => encrypted_file,
                 Err(e) => {
                     error!("Unable to load encrypted file: {e:?}");
@@ -1116,7 +1122,7 @@ impl PlayerTrackLoader {
             // without decryption. If the file was encrypted after all, the decoder will fail
             // parsing and bail out, so we should be safe from outputting ear-piercing noise.
             let (key, audio_key_unavailable) =
-                match self.session.audio_key().request(track_id, file_id).await {
+                match key_result {
                     Ok(key) => (Some(key), false),
                     Err(e) => {
                         let unavailable = Self::is_audio_key_unavailable(&e);

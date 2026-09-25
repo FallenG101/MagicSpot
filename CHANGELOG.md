@@ -3,10 +3,20 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
-## Unreleased
+## v2.0.0 — 2026-09-25
 
 - Simplified Windows release downloads by keeping `magicspot.exe` inside the
   portable ZIP instead of also publishing it as a duplicate loose asset.
+- Show known album and playlist details immediately, reuse embedded album
+  tracks, and request only playlist metadata needed by the page header.
+- Overlap cold audio-file setup with the audio-key request to reduce serial
+  network waits during playback startup.
+- Keep playlist cache writes off the backend command loop and fetch
+  collaborator names concurrently with a bounded request count.
+- Decode large API responses away from async workers and add verbose timings
+  for request stages.
+- Reduce repeated now-playing work and skip redundant Windows media-control
+  position updates.
 
 ## v1.0.1 — 2026-09-20
 

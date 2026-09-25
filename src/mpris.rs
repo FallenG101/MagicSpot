@@ -75,7 +75,7 @@ impl MediaService {
         let structural = self
             .published
             .as_ref()
-            .is_none_or(|published| !same_except_position(published, &state));
+            .is_none_or(|published| !published.same_except_position(&state));
         let position_due = state.playback != Playback::Playing
             || self.last_position_update.elapsed() >= PLAYING_POSITION_INTERVAL;
         let position_changed = self
@@ -94,15 +94,6 @@ impl MediaService {
     pub fn seeked(&self, position_ms: u32) {
         let _ = self.updates.send(Update::Seeked(position_ms));
     }
-}
-
-fn same_except_position(left: &MediaState, right: &MediaState) -> bool {
-    left.playback == right.playback
-        && left.track == right.track
-        && (left.volume - right.volume).abs() < 0.005
-        && left.shuffle == right.shuffle
-        && left.repeat == right.repeat
-        && left.can_control == right.can_control
 }
 
 async fn run(

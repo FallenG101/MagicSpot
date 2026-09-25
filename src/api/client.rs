@@ -344,13 +344,17 @@ impl ApiClient {
         let mut attempt = 0;
         loop {
             attempt += 1;
+            let attempt_started = Instant::now();
             self.wait_for_cooldown().await;
+            let cooldown_done = Instant::now();
             let permit = self
                 .limiter
                 .acquire()
                 .await
                 .map_err(|_| ApiError::NotSignedIn)?;
+            let permit_acquired = Instant::now();
             let token = provider.access_token().await?;
+            let token_ready = Instant::now();
             let mut request = self
                 .http
                 .request(method.clone(), &url)
@@ -362,6 +366,7 @@ impl ApiClient {
                 request = request.header(reqwest::header::CONTENT_LENGTH, "0");
             }
             let response = request.send().await?;
+            let headers_ready = Instant::now();
             let status = response.status();
 
             if status == StatusCode::UNAUTHORIZED && attempt == 1 {
@@ -400,12 +405,19 @@ impl ApiClient {
                 return Err(ApiError::RateLimited);
             }
             let text = response.text().await?;
+            let body_ready = Instant::now();
             log::debug!(
-                "Spotify request source={} method={} status={} duration_ms={}",
+                "Spotify request source={} method={} status={} duration_ms={} cooldown_ms={} permit_ms={} token_ms={} headers_ms={} body_ms={} bytes={} attempts={attempt}",
                 self.source,
                 method,
                 status.as_u16(),
-                started.elapsed().as_millis()
+                started.elapsed().as_millis(),
+                cooldown_done.duration_since(attempt_started).as_millis(),
+                permit_acquired.duration_since(cooldown_done).as_millis(),
+                token_ready.duration_since(permit_acquired).as_millis(),
+                headers_ready.duration_since(token_ready).as_millis(),
+                body_ready.duration_since(headers_ready).as_millis(),
+                text.len(),
             );
             if status.is_success() {
                 return Ok(text);
@@ -427,13 +439,31 @@ impl ApiClient {
         }
     }
 
-    async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
+    async fn get<T: DeserializeOwned + Send + 'static>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<T> {
         let text = self.send(Method::GET, path, query, None).await?;
         if text.trim().is_empty() {
             return serde_json::from_value(Value::Null)
                 .map_err(|error| ApiError::Decode(error.to_string()));
         }
-        serde_json::from_str(&text).map_err(|error| ApiError::Decode(error.to_string()))
+        let bytes = text.len();
+        let started = Instant::now();
+        let result = if bytes >= 64 * 1024 {
+            tokio::task::spawn_blocking(move || serde_json::from_str::<T>(&text))
+                .await
+                .map_err(|error| ApiError::Decode(error.to_string()))?
+        } else {
+            serde_json::from_str(&text)
+        };
+        log::debug!(
+            "Spotify JSON decode source={} bytes={bytes} duration_ms={}",
+            self.source,
+            started.elapsed().as_millis()
+        );
+        result.map_err(|error| ApiError::Decode(error.to_string()))
     }
 
     async fn get_optional<T: DeserializeOwned>(
@@ -628,7 +658,17 @@ impl ApiClient {
     }
 
     pub async fn playlist(&self, id: &str) -> Result<Playlist> {
-        self.get(&format!("/playlists/{id}"), &[]).await
+        // Items are fetched separately, so omit the playlist's embedded item
+        // objects while retaining the counts used by the header.
+        self.get(
+            &format!("/playlists/{id}"),
+            &[(
+                "fields",
+                "id,name,uri,description,images,owner(id,display_name),public,collaborative,snapshot_id,tracks(total),items(total),external_urls"
+                    .to_string(),
+            )],
+        )
+        .await
     }
 
     pub async fn playlist_items(
