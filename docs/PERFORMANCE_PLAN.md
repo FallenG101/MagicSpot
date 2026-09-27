@@ -1,14 +1,14 @@
 # MagicSpot performance plan
 
-Updated 2026-09-25. This plan covers load time, interaction latency, steady-state
+Updated 2026-09-26. This plan covers load time, interaction latency, steady-state
 CPU, memory, and network use across Windows, macOS, and Linux. It is an audit
 and work plan; the timings below need a measured baseline before targets can be
 set.
 
 ## Implementation status
 
-This pass addresses bottlenecks visible in code without requiring a Spotify
-account or a release-profile timing rig:
+The v2.0.0 and v2.0.1 releases addressed bottlenecks visible in code and added
+timing tools for comparative measurements:
 
 - Cold track setup and audio-key retrieval now overlap.
 - Album and playlist detail pages use known metadata immediately; an album's
@@ -41,13 +41,14 @@ repeat it after each further tuning batch before setting numeric targets.
 ## Measuring album, playlist, and playback latency
 
 Run an optimized build with `--verbose`. On Windows the current-run log is
-`%LOCALAPPDATA%\falleng101\magicspot\data\MagicSpot.log`; the app replaces it at launch, so
-copy it into a private measurement directory before each restart. Do not
-publish raw logs, which may include account or library details from other
-subsystems. The new `magicspot::page_timing` entries contain only page type,
-cache flags, source, and elapsed time. `magicspot::startup_timing` records the
-first UI frame. Existing `magicspot::playback_timing` summaries record time to
-the first queued audio buffer, which is earlier than audible output.
+`%LOCALAPPDATA%\falleng101\magicspot\data\MagicSpot.log`. The app replaces it
+at launch, so copy it into a private measurement directory before each
+restart. Do not publish raw logs, which may include account or library details
+from other subsystems. The `magicspot::page_timing` entries contain only page
+type, cache flags, source, and elapsed time. `magicspot::startup_timing`
+records the first UI frame. Existing `magicspot::playback_timing` summaries
+record time to the first queued audio buffer, which is earlier than audible
+output.
 If `RUST_LOG` is set, it overrides the default `--verbose` filter; include
 `magicspot=debug` or the individual timing targets in that environment value.
 
@@ -107,10 +108,10 @@ comparative runs once requests are no longer being throttled.
   the UI thread.
 - Playback logs milestones through `magicspot::playback_timing`; the vendored
   player incrementally streams audio and preloads upcoming tracks.
-- The active worktree already contains a change that overlaps cold audio-file
-  setup with its audio-key request, shorter playlist metadata fields, and
-  metadata seeding for album and playlist pages. Include these changes in the
-  baseline; do not count their gains twice.
+- The v2.0.0 release overlaps cold audio-file setup with its audio-key request,
+  shortens playlist metadata fields, and seeds album and playlist pages with
+  known metadata. Include these changes in the baseline; do not count their
+  gains twice.
 
 ## Phase 0: measure before tuning
 
@@ -120,7 +121,7 @@ debug builds distort CPU and audio results.
 
 Record at least five runs per scenario and report median and p95:
 
-1. Process start to first interactive frame; start to signed-in Home; start to
+1. Process start to first UI frame; start to signed-in Home; start to
    first useful content after session restore.
 2. Navigation to album or playlist: first visible header, first usable rows,
    complete first page, and a warm revisit.
@@ -132,9 +133,9 @@ Record at least five runs per scenario and report median and p95:
 6. Idle and playing resource use: CPU, process memory, artwork memory, audio
    cache size, artwork disk size, request count, and bytes transferred.
 
-Use the existing verbose API request durations, playlist-cache logs, and
-`magicspot::playback_timing` traces. Add opt-in timing only where a gap remains:
-startup milestones, page-data phases, first-paint milestones, and frame-time
+Use the existing verbose API request durations, playlist-cache logs,
+`magicspot::playback_timing`, and v2.0.1 startup and page timing traces. Add
+opt-in timing where gaps remain, including signed-in Home and frame-time
 sampling. Keep credentials, track contents, and personal data out of logs.
 Capture a baseline report and machine/build details before choosing numeric
 acceptance targets.
@@ -148,9 +149,8 @@ acceptance targets.
   how long until fresh rows arrive.
 - Keep playlist metadata responses limited to fields the header uses; compare
   response bytes and decode time for large playlists.
-- Inspect the album endpoint's embedded track page and use it as the first
-  page when present. Request another page only when the embedded page says one
-  exists. Avoid duplicate first-page requests.
+- Verify in real sessions that reusing the album endpoint's embedded first
+  track page avoids a duplicate request and shortens time to usable rows.
 - Add a bounded, account-independent catalogue cache for album metadata and
   first-page tracks if measurements show cold direct links remain slow. Give
   cached content a clear freshness policy and always reconcile with Spotify.
@@ -267,12 +267,11 @@ acceptance targets.
 
 - Measure artwork cache hit rates, file sizes, network bytes, decode time,
   texture upload time, retained bytes, and memory churn on long sessions.
-- Artwork memory is capped, but the disk cache currently has no stated size
-  budget. Add size-based disk eviction with atomic writes and protect artwork
-  currently used by media controls.
-- Avoid repeated disk reads when `ArtLoader::fetch` runs concurrently for one
-  URL. Preserve the in-flight request coalescing already used by the egui
-  loader across direct fetch paths too.
+- Verify the 512 MiB artwork disk-cache target under sustained use. Cleanup
+  preserves active UI images and the media-control image, so protected files
+  can temporarily keep the cache over its target.
+- Measure the benefit of shared in-flight artwork fetches for direct and UI
+  callers, especially on artwork-heavy pages.
 - Use the smallest supported Spotify image appropriate to each surface. Keep
   the original art unchanged; do not crop or paint over the source artwork.
 - Measure full-size decoding for small covers. If upload or decode dominates,
@@ -301,16 +300,15 @@ acceptance targets.
 
 ## Priority order
 
-1. Establish baselines and stage timings.
-2. Finish and measure immediate album/playlist content and payload reduction
-   already in the worktree.
-3. Profile collection, Home, and search API scheduling; fix requests that block
+1. Establish valid cold/warm baselines with the shipped timing markers.
+2. Profile collection, Home, and search API scheduling; fix requests that block
    first visible content.
-4. Improve validated warm page/cache behavior and add a bounded album cache if
+3. Improve validated warm page/cache behavior and add a bounded album cache if
    cold direct navigation remains a top delay.
-5. Instrument and tune cold audio startup, CDN read-ahead, and output opening.
-6. Profile UI frame time, artwork, and memory, then optimize measured hot paths.
-7. Recheck cross-platform release behavior and confirm regressions are absent.
+4. Extend playback stage timing where needed, then tune cold audio startup,
+   CDN read-ahead, and output opening against measured results.
+5. Profile UI frame time, artwork, and memory, then optimize measured hot paths.
+6. Recheck cross-platform release behavior and confirm regressions are absent.
 
 ## Acceptance and guardrails
 

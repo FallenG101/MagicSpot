@@ -3,6 +3,18 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
+## v2.0.1 — 2026-09-25
+
+- Bounded the artwork disk cache to a 512 MiB target, cleaning old unused
+  artwork and incomplete writes on a blocking worker while protecting images
+  used by the UI and desktop media controls.
+- Shared concurrent direct and UI artwork requests for the same URL so they
+  use one fetch.
+- Added verbose album, playlist, and startup timing milestones and a
+  PowerShell script that summarizes collected runs with median and p95.
+- Confirmed the markers in a live session. Spotify rate limits prevented a
+  valid cold/warm performance comparison, so no measured speedup is claimed.
+
 ## v2.0.0 — 2026-09-25
 
 - Simplified Windows release downloads by keeping `magicspot.exe` inside the

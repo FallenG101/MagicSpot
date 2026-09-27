@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-25. This is the starting point for a new maintainer, coding
+Updated 2026-09-26. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -12,8 +12,10 @@ agent, or chat that does not have the project's conversation history.
 - The latest user release is **v2.0.1**, adding album, playlist, and startup
   timing markers, a timing summary script, a 512 MiB artwork disk-cache target,
   and shared concurrent artwork fetches. Formatting, all 304 demo tests,
-  strict Clippy, and the release build passed. Real cold/warm performance
-  comparison remains pending because Spotify rate-limited the first live run.
+  strict Clippy, the release build, and Windows/macOS/Linux CI passed. The
+  Windows installer, portable ZIP, universal macOS DMG, and checksums are
+  published. Real cold/warm performance comparison remains pending because
+  Spotify rate-limited the first live run.
 - Windows and macOS packaging are manual GitHub Actions jobs. A complete
   published release includes the Windows installer and portable ZIP, a
   universal macOS DMG, checksum files, and GitHub source archives.
@@ -269,7 +271,7 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Exercise the v2.0.0 connection, playback authorization, custom theme, and
+- Exercise the v2.0.1 connection, playback authorization, custom theme, and
   local playback flows across varied real Spotify accounts and devices.
 - Continue profiling genuinely cold CDN starts and skips issued before the
   preload cushion is ready; preserve the new fast queued-transition path.
@@ -283,6 +285,6 @@ are the strongest candidates to contribute independently to Fastpotify.
   described accurately in the UI and documentation.
 - Revisit lossless only after upstream playback support exists.
 
-The v2.0.1 release contains the measured-work tooling and artwork cache work.
+The v2.0.1 release contains the timing tools and artwork cache work.
 Complete real-account cold/warm comparisons when Spotify requests are no
 longer throttled; then profile Home, search, and large libraries.
