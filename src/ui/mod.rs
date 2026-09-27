@@ -42,6 +42,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         window_resize(ui);
         return;
     }
+    if app.show_lyrics_full_page {
+        player_bar::show(app, ui);
+        lyrics::full_page(app, ui);
+        devices::popup(app, ctx);
+        dialogs::show(app, ctx);
+        toasts(app, ctx, theme::PLAYER_BAR_HEIGHT + 28.0);
+        window_controls(ui, &app.palette);
+        window_resize(ui);
+        return;
+    }
     if app.settings.sidebar_visible {
         sidebar::show(app, ui);
     }

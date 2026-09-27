@@ -18,7 +18,14 @@ pub struct TableRowsCache {
     pub generation: u64,
     pub items_revision: u64,
     pub user_names_revision: u64,
-    pub items: Arc<[TableItem]>,
+    pub items: Arc<Vec<TableItem>>,
+    /// Playlist rows retain their server slots, including gaps for unavailable items.
+    pub playlist_positions: Option<Arc<Vec<usize>>>,
+    pub playlist_raw_count: usize,
+    pub playlist_duration_ms: u64,
+    pub playlist_owner: Option<(Option<String>, String)>,
+    /// Set only when the next revision extends this cached playlist prefix.
+    pub playlist_append_revision: Option<u64>,
 }
 
 impl TableRowsCache {
@@ -26,6 +33,13 @@ impl TableRowsCache {
     /// the top-level URI and title.
     pub fn retained_bytes(&self) -> usize {
         std::mem::size_of::<Self>()
+            + self.items.capacity() * std::mem::size_of::<TableItem>()
+            + self.playlist_positions.as_ref().map_or(0, |positions| {
+                positions.capacity() * std::mem::size_of::<usize>()
+            })
+            + self.playlist_owner.as_ref().map_or(0, |(id, name)| {
+                id.as_ref().map_or(0, String::len) + name.len()
+            })
             + self
                 .items
                 .iter()
@@ -455,6 +469,13 @@ impl<T> CursorList<T> {
 pub struct Library {
     pub playlists: Loadable<Vec<Playlist>>,
     pub playlists_next: Option<u32>,
+    /// Which load of the playlists the pages on their way belong to. Every
+    /// load from the top takes a new one, so a page asked for by an earlier
+    /// load is not taken into the new list, even at the same offset.
+    pub playlists_generation: u64,
+    /// The later playlist page on its way, so a second answer for a page
+    /// already taken adds nothing.
+    pub playlists_asked: Option<u32>,
     pub liked: PagedList<SavedTrack>,
     pub albums: PagedList<SavedAlbum>,
     pub artists: CursorList<Artist>,
@@ -872,6 +893,7 @@ pub enum Action {
     ToggleSidebar,
     ToggleQueuePanel,
     ToggleLyricsPanel,
+    ToggleLyricsFullPage,
     ToggleDevicesPopup,
     /// Ask GitHub for the latest release and report the result to the user.
     CheckForUpdates,

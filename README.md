@@ -14,7 +14,7 @@ release direction.
 
 ## Current status
 
-MagicSpot 2.0.1 is the current milestone release. It remains an early
+MagicSpot 2.1.0 is the current milestone release. It remains an early
 personal project, and Spotify Premium is required for local playback through
 librespot. MagicSpot is not affiliated with or endorsed by Spotify.
 
@@ -31,6 +31,11 @@ in verbose logs; the [performance plan](docs/PERFORMANCE_PLAN.md) explains how
 to summarize repeated runs. Comparative cold and warm timing results are still
 pending.
 
+The full-window lyrics view keeps playback controls visible while synced lines
+follow the song. Large playlists reuse rendered rows and sort keys as pages
+load, and playlist cache checkpoints append new rows without rewriting earlier
+ones.
+
 ## What is different
 
 - A redesigned desktop shell with a full-height library rail, top navigation,
@@ -43,8 +48,8 @@ pending.
   separation, recent history, and save-as-playlist support.
 - Responsive navigation with compact search, destination-aware history, mouse
   Back/Forward support, and stable access to utilities at narrow widths.
-- A resizable lyrics panel with an artwork-backed track header and no separate
-  full-screen lyrics mode.
+- A resizable lyrics panel and a full-window lyrics view with large artwork,
+  synced lines, and the player bar always available.
 - Adjustable lyric size, spacing, alignment, Inter/Manrope/Lora font, subtle
   glow, and blurred album-art backdrop, plus optional word-by-word highlighting
   marked **Beta** and disabled by default.

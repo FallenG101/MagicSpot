@@ -732,6 +732,13 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 app.lyrics_following = true;
                 app.show_lyrics_panel = true;
             }
+            "lyrics-full" => {
+                app.lyrics_uri = app.now_playing().map(|now| now.uri);
+                app.lyrics = Loadable::Loaded(Some(std::sync::Arc::new(sample_lyrics())));
+                app.lyrics_following = true;
+                app.show_lyrics_full_page = true;
+                app.show_lyrics_panel = false;
+            }
             "lyrics-expanded" => {
                 app.lyrics_uri = app.now_playing().map(|now| now.uri);
                 app.lyrics = Loadable::Loaded(Some(std::sync::Arc::new(sample_lyrics())));
@@ -1791,6 +1798,9 @@ mod tests {
         app.settings.sidebar_visible = false;
         frame(&ctx, &mut app);
         app.settings.sidebar_visible = true;
+        apply_flags(&mut app, None, Some("lyrics-full"));
+        frame(&ctx, &mut app);
+        app.show_lyrics_full_page = false;
         app.show_queue_panel = true;
         app.show_devices = true;
         frame(&ctx, &mut app);

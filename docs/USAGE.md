@@ -3,11 +3,16 @@
 ## Lyrics
 
 Open lyrics with the microphone button or `L`. Drag the panel's left edge to
-move continuously between compact and wide layouts. The album card and type
-scale respond to the available width; there is no separate expanded mode.
+move continuously between compact and wide layouts. Select the expand button
+in its header, or press `Shift+L`, to open the full-window lyrics view. The
+artwork sits beside the lyrics on wide windows and above them on narrow ones;
+the player bar stays visible. Select the shrink button or press `Esc` to return
+to the panel. Press `L` to close lyrics entirely.
 
-Lyrics follow the playing line by default. Select **Follow** after manually
-scrolling, or click a timed line to seek. Open **Lyrics appearance** under
+Lyrics follow the playing line in both views. The current line has a subtle
+glow; enabling **Subtle lyric glow** in Lyrics appearance makes it a little
+stronger. Select **Follow** after manually scrolling, or click a timed line to
+seek. Open **Lyrics appearance** under
 **Settings → Appearance** to adjust text size, line spacing, left or centered
 alignment, choose Inter, Manrope, or Lora type, enable a subtle glow, and set
 how much blurred album artwork shows through the background. **Word-by-word
@@ -56,7 +61,8 @@ refreshed, cleared, or saved as a private playlist.
 Back and Forward support `Alt+Left` / `Alt+Right` and extra mouse buttons, and
 their tooltips name the destination. At narrow widths the search field becomes
 a search button and secondary utilities move into the account menu. `Escape`
-closes the open popup, lyrics panel, or queue panel.
+closes the open popup, lyrics panel, or queue panel; in the full-window lyrics
+view it returns to the lyrics panel.
 
 Below 720 points, the now-playing bar keeps the cover, clipped track details,
 Previous/Play/Next, and a bottom seek line. Shuffle, repeat, lyrics, queue,

@@ -3,6 +3,18 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
+## v2.1.0 — 2026-09-27
+
+- Added a full-window lyrics view with large artwork, responsive lyric layout,
+  the player bar, and a return path to the resizable lyrics panel.
+- Gave the active synced lyric a slightly stronger glow.
+- Kept large playlists responsive while more rows arrive by extending row
+  caches and calculating text sort keys once per row.
+- Appended new playlist rows to durable cache checkpoints instead of rewriting
+  the growing cache file. Older whole-playlist caches remain readable.
+- Ignored playlist-library pages from an earlier load after refresh or sign-out.
+- Allowed the playback connection enough time to try all Spotify access points.
+
 ## v2.0.1 — 2026-09-25
 
 - Bounded the artwork disk cache to a 512 MiB target, cleaning old unused

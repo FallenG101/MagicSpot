@@ -367,7 +367,7 @@ pub fn table_items_hit(
     generation: u64,
     items_revision: u64,
     user_names_revision: u64,
-) -> Option<Arc<[TableItem]>> {
+) -> Option<Arc<Vec<TableItem>>> {
     app.table_rows.get(page).and_then(|cached| {
         (cached.generation == generation
             && cached.items_revision == items_revision
@@ -383,8 +383,8 @@ pub fn remember_table_items(
     items_revision: u64,
     user_names_revision: u64,
     items: Vec<TableItem>,
-) -> Arc<[TableItem]> {
-    let items: Arc<[TableItem]> = items.into();
+) -> Arc<Vec<TableItem>> {
+    let items = Arc::new(items);
     app.table_rows.insert(
         page.clone(),
         TableRowsCache {
@@ -392,6 +392,11 @@ pub fn remember_table_items(
             items_revision,
             user_names_revision,
             items: Arc::clone(&items),
+            playlist_positions: None,
+            playlist_raw_count: 0,
+            playlist_duration_ms: 0,
+            playlist_owner: None,
+            playlist_append_revision: None,
         },
     );
     app.retain_table_rows(&page);
@@ -412,7 +417,7 @@ pub fn cached_table_items(
     items_revision: u64,
     user_names_revision: u64,
     build: impl FnOnce() -> Vec<TableItem>,
-) -> Arc<[TableItem]> {
+) -> Arc<Vec<TableItem>> {
     if let Some(items) =
         table_items_hit(app, &page, generation, items_revision, user_names_revision)
     {
@@ -697,6 +702,14 @@ fn absolute_row_index(row_offset: u32, local_index: usize) -> usize {
     (row_offset as usize).saturating_add(local_index)
 }
 
+fn sort_by_text_key(visible: &mut [usize], ascending: bool, key: impl Fn(usize) -> String) {
+    if ascending {
+        visible.sort_by_cached_key(|&index| key(index));
+    } else {
+        visible.sort_by_cached_key(|&index| std::cmp::Reverse(key(index)));
+    }
+}
+
 /// The indices of `items` as a view presents them: filtered by `needle`
 /// (already lowercased), then ordered by `sort`.
 fn view_indices(items: &[TableItem], needle: &str, sort: Option<TableSort>) -> Vec<usize> {
@@ -725,42 +738,43 @@ fn view_indices(items: &[TableItem], needle: &str, sort: Option<TableSort>) -> V
         .map(|(index, _)| index)
         .collect();
     if let Some(sort) = sort {
-        let album_of = |item: &PlayableItem| match item {
-            PlayableItem::Track(track) => track
-                .album
-                .as_ref()
-                .map(|album| album.name.to_lowercase())
-                .unwrap_or_default(),
-            PlayableItem::Episode(_) => String::new(),
-        };
-        let duration_of = |item: &PlayableItem| match item {
-            PlayableItem::Track(track) => track.duration_ms,
-            PlayableItem::Episode(episode) => episode.duration_ms,
-        };
-        visible.sort_by(|a, b| {
-            let (item_a, added_a, adder_a) = &items[*a];
-            let (item_b, added_b, adder_b) = &items[*b];
-            let ordering = match sort.column {
-                SortColumn::Title => item_a
-                    .name()
-                    .to_lowercase()
-                    .cmp(&item_b.name().to_lowercase()),
-                SortColumn::Album => album_of(item_a).cmp(&album_of(item_b)),
-                SortColumn::Added => added_a.cmp(added_b),
-                SortColumn::Index => a.cmp(b),
-                SortColumn::AddedBy => adder_a
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_lowercase()
-                    .cmp(&adder_b.as_deref().unwrap_or_default().to_lowercase()),
-                SortColumn::Duration => duration_of(item_a).cmp(&duration_of(item_b)),
-            };
-            if sort.ascending {
-                ordering
-            } else {
-                ordering.reverse()
+        match sort.column {
+            SortColumn::Title => sort_by_text_key(&mut visible, sort.ascending, |index| {
+                items[index].0.name().to_lowercase()
+            }),
+            SortColumn::Album => {
+                sort_by_text_key(&mut visible, sort.ascending, |index| {
+                    match &items[index].0 {
+                        PlayableItem::Track(track) => track
+                            .album
+                            .as_ref()
+                            .map(|album| album.name.to_lowercase())
+                            .unwrap_or_default(),
+                        PlayableItem::Episode(_) => String::new(),
+                    }
+                })
             }
-        });
+            SortColumn::AddedBy => sort_by_text_key(&mut visible, sort.ascending, |index| {
+                items[index].2.as_deref().unwrap_or_default().to_lowercase()
+            }),
+            SortColumn::Added | SortColumn::Index | SortColumn::Duration => {
+                visible.sort_by(|a, b| {
+                    let ordering = match sort.column {
+                        SortColumn::Added => items[*a].1.cmp(&items[*b].1),
+                        SortColumn::Index => a.cmp(b),
+                        SortColumn::Duration => {
+                            items[*a].0.duration_ms().cmp(&items[*b].0.duration_ms())
+                        }
+                        _ => unreachable!("text columns are handled above"),
+                    };
+                    if sort.ascending {
+                        ordering
+                    } else {
+                        ordering.reverse()
+                    }
+                });
+            }
+        }
     }
     visible
 }
@@ -772,16 +786,22 @@ fn total_duration(items: &[TableItem]) -> u64 {
         .sum()
 }
 
-fn items_of(
-    list: &PagedList<crate::api::models::PlaylistItem>,
+fn playlist_rows(
+    list: &[crate::api::models::PlaylistItem],
+    start: usize,
     owner_id: Option<&str>,
     owner_name: &str,
     names: &std::collections::HashMap<String, Option<String>>,
-) -> Vec<TableItem> {
-    list.items
-        .iter()
-        .filter_map(|item| {
-            let playable = item.playable().cloned()?;
+) -> (Vec<TableItem>, Vec<usize>, u64) {
+    let mut rows = Vec::new();
+    let mut positions = Vec::new();
+    let mut duration_ms = 0;
+    for (index, item) in list.iter().enumerate() {
+        if let Some(mut playable) = item.playable().cloned() {
+            if let PlayableItem::Track(track) = &mut playable {
+                track.is_local |= item.is_local;
+            }
+            duration_ms += playable.duration_ms() as u64;
             let adder = item
                 .added_by
                 .as_ref()
@@ -796,9 +816,94 @@ fn items_of(
                             .unwrap_or_else(|| id.to_string())
                     }
                 });
-            Some((playable, item.added_at.clone(), adder))
-        })
-        .collect()
+            positions.push(start + index);
+            rows.push((playable, item.added_at.clone(), adder));
+        }
+    }
+    (rows, positions, duration_ms)
+}
+
+pub(crate) fn playlist_cached_table_items(
+    app: &mut App,
+    id: &str,
+    generation: u64,
+    list: &PagedList<crate::api::models::PlaylistItem>,
+    owner_id: Option<&str>,
+    owner_name: &str,
+) -> (Arc<Vec<TableItem>>, Arc<Vec<usize>>, u64) {
+    let key = Page::Playlist(id.to_string());
+    let revision = list.revision;
+    let names_revision = app.user_names_revision;
+    let same_owner = |cache: &TableRowsCache| {
+        cache
+            .playlist_owner
+            .as_ref()
+            .is_some_and(|(id, name)| id.as_deref() == owner_id && name == owner_name)
+    };
+    if let Some(cache) = app.table_rows.get(&key)
+        && cache.generation == generation
+        && cache.items_revision == revision
+        && cache.user_names_revision == names_revision
+        && same_owner(cache)
+        && let Some(positions) = &cache.playlist_positions
+    {
+        let result = (
+            Arc::clone(&cache.items),
+            Arc::clone(positions),
+            cache.playlist_duration_ms,
+        );
+        app.retain_table_rows(&key);
+        return result;
+    }
+
+    let append_from = app.table_rows.get(&key).and_then(|cache| {
+        (cache.generation == generation
+            && cache.user_names_revision == names_revision
+            && same_owner(cache)
+            && cache.playlist_append_revision == Some(revision)
+            && cache.playlist_raw_count <= list.items.len())
+        .then_some(cache.playlist_raw_count)
+    });
+    if let Some(start) = append_from {
+        let (new_rows, new_positions, new_duration) = playlist_rows(
+            &list.items[start..],
+            start,
+            owner_id,
+            owner_name,
+            &app.user_names,
+        );
+        if let Some(cache) = app.table_rows.get_mut(&key)
+            && let Some(positions) = cache.playlist_positions.as_mut()
+            && let Some(rows) = Arc::get_mut(&mut cache.items)
+            && let Some(old_positions) = Arc::get_mut(positions)
+        {
+            rows.extend(new_rows);
+            old_positions.extend(new_positions);
+            cache.items_revision = revision;
+            cache.playlist_raw_count = list.items.len();
+            cache.playlist_duration_ms += new_duration;
+            cache.playlist_append_revision = None;
+            let result = (
+                Arc::clone(&cache.items),
+                Arc::clone(positions),
+                cache.playlist_duration_ms,
+            );
+            app.retain_table_rows(&key);
+            return result;
+        }
+    }
+
+    let (rows, positions, duration_ms) =
+        playlist_rows(&list.items, 0, owner_id, owner_name, &app.user_names);
+    let items = remember_table_items(app, key.clone(), generation, revision, names_revision, rows);
+    let positions = Arc::new(positions);
+    if let Some(cache) = app.table_rows.get_mut(&key) {
+        cache.playlist_positions = Some(Arc::clone(&positions));
+        cache.playlist_raw_count = list.items.len();
+        cache.playlist_duration_ms = duration_ms;
+        cache.playlist_owner = Some((owner_id.map(str::to_string), owner_name.to_string()));
+    }
+    (items, positions, duration_ms)
 }
 
 /// A complete, ranked view of the listener's current top tracks.
@@ -875,23 +980,19 @@ pub fn playlist(app: &mut App, ui: &mut egui::Ui, id: &str) {
     let user_id = app.user_id().unwrap_or("").to_string();
     match &page.playlist {
         Loadable::Loaded(playlist) => {
-            let generation = page.generation;
-            let revision = page.items.revision;
-            let names = app.user_names_revision;
-            let key = Page::Playlist(id.to_string());
-            let items = if let Some(items) = table_items_hit(app, &key, generation, revision, names)
-            {
-                items
-            } else {
-                let rows = items_of(
-                    &page.items,
-                    playlist.owner.id.as_deref(),
-                    playlist.owner_name(),
-                    &app.user_names,
-                );
-                remember_table_items(app, key, generation, revision, names, rows)
-            };
-            let count = playlist.track_total().max(items.len() as u32);
+            let (items, _positions, duration_ms) = playlist_cached_table_items(
+                app,
+                id,
+                page.generation,
+                &page.items,
+                playlist.owner.id.as_deref(),
+                playlist.owner_name(),
+            );
+            let count = page
+                .items
+                .total
+                .unwrap_or_else(|| playlist.track_total())
+                .max(items.len() as u32);
             // Spotify's collaborative flag covers secret collaborations; a
             // playlist made together today is recognised by who added songs.
             let owner_id = playlist.owner.id.as_deref();
@@ -930,7 +1031,7 @@ pub fn playlist(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 format!(
                     "{} songs, {}",
                     util::format_count(count as u64),
-                    util::format_total_ms(total_duration(&items))
+                    util::format_total_ms(duration_ms)
                 )
             } else {
                 format!("{} songs", util::format_count(count as u64))
@@ -1513,6 +1614,61 @@ mod tests {
         });
         let visible = view_indices(&items, "", sort);
         assert_eq!(visible, vec![3, 2, 1, 0]);
+    }
+
+    #[test]
+    fn text_sorts_preserve_case_insensitive_ties_in_both_directions() {
+        let mut items = make_test_tracks();
+        for (item, label) in items.iter_mut().zip(["Beta", "alpha", "ALPHA", "zeta"]) {
+            let PlayableItem::Track(track) = &mut item.0 else {
+                panic!("test rows are tracks");
+            };
+            track.name = label.into();
+            track.album.as_mut().unwrap().name = label.into();
+            item.2 = Some(label.into());
+        }
+
+        for column in [SortColumn::Title, SortColumn::Album, SortColumn::AddedBy] {
+            assert_eq!(
+                view_indices(
+                    &items,
+                    "",
+                    Some(TableSort {
+                        column,
+                        ascending: true,
+                    }),
+                ),
+                vec![1, 2, 0, 3],
+                "{column:?} ascending"
+            );
+            assert_eq!(
+                view_indices(
+                    &items,
+                    "",
+                    Some(TableSort {
+                        column,
+                        ascending: false,
+                    }),
+                ),
+                vec![3, 0, 1, 2],
+                "{column:?} descending must keep tied rows in playlist order"
+            );
+        }
+    }
+
+    #[test]
+    fn text_sort_normalizes_each_visible_row_once() {
+        let labels = ["Beta", "alpha", "ALPHA", "zeta"];
+        let mut visible = [0, 1, 2, 3];
+        let calls = std::cell::Cell::new(0);
+
+        sort_by_text_key(&mut visible, false, |index| {
+            calls.set(calls.get() + 1);
+            labels[index].to_lowercase()
+        });
+
+        assert_eq!(calls.get(), visible.len());
+        assert_eq!(visible, [3, 0, 1, 2]);
     }
 
     #[test]

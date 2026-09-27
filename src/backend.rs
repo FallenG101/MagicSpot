@@ -24,7 +24,17 @@ use crate::player::{Engine, EngineConfig, EngineEvent, LoadSpec, LocalState, Pla
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
+mod playlist_cache;
+
 const PREMIUM_NEEDED: &str = "Local playback needs Spotify Premium.";
+// Leave time for access-point retries plus resolver and authentication work.
+const ENGINE_CONNECT_TIMEOUT: Duration = Duration::from_secs(75);
+
+async fn connect_engine_with_deadline<F: std::future::Future>(
+    connect: F,
+) -> Result<F::Output, tokio::time::error::Elapsed> {
+    tokio::time::timeout(ENGINE_CONNECT_TIMEOUT, connect).await
+}
 pub const PLAYLIST_PAGE_SIZE: u32 = 50;
 /// `Spirc::new` has finished registering when it returns.  Keep a tiny yield
 /// before resuming a dropped session, but do not add a visible pause before
@@ -98,6 +108,7 @@ pub enum ApiRequest {
     },
     MyPlaylists {
         offset: u32,
+        generation: u64,
     },
     Playlist {
         id: String,
@@ -295,6 +306,7 @@ pub enum ApiResponse {
     },
     MyPlaylists {
         offset: u32,
+        generation: u64,
         result: ApiResult<Page<Playlist>>,
     },
     Playlist {
@@ -1385,11 +1397,9 @@ impl Worker {
                     return;
                 }
             };
-            let attempt = tokio::time::timeout(
-                Duration::from_secs(45),
-                Engine::connect(&config, credentials, cache, notify),
-            )
-            .await;
+            let attempt =
+                connect_engine_with_deadline(Engine::connect(&config, credentials, cache, notify))
+                    .await;
             let outcome = match attempt {
                 Ok(Ok(engine)) => Command::EngineConnected {
                     engine: Box::new(Some(engine)),
@@ -1611,26 +1621,10 @@ impl Worker {
             .join(format!("{id}.json"));
         let account_id = account.as_str().to_string();
         tokio::spawn(async move {
-            let cache = tokio::fs::read_to_string(&path)
+            let cache = tokio::task::spawn_blocking(move || playlist_cache::read(&path).ok())
                 .await
                 .ok()
-                .and_then(|text| serde_json::from_str::<CachedPlaylist>(&text).ok())
-                .and_then(|cached| {
-                    let total = cached
-                        .total
-                        .unwrap_or_else(|| cached.items.len().try_into().unwrap_or(u32::MAX));
-                    if cached.items.len() > total as usize
-                        || cached.next_offset.is_some_and(|offset| offset > total)
-                    {
-                        return None;
-                    }
-                    Some(PlaylistCache {
-                        snapshot: cached.snapshot,
-                        items: cached.items,
-                        total,
-                        next_offset: cached.next_offset,
-                    })
-                });
+                .flatten();
             let _ = events.send(Event::PlaylistCache {
                 account_id,
                 id,
@@ -1668,7 +1662,7 @@ impl Worker {
                 let _ = previous.await;
             }
             let written = tokio::task::spawn_blocking(move || {
-                let result = write_cached_playlist(&path, &cached);
+                let result = playlist_cache::write(&path, &cached);
                 (path, result)
             })
             .await;
@@ -1965,8 +1959,9 @@ async fn handle(api: &ApiGateway, request: ApiRequest) -> (ApiResponse, Option<A
                 result,
             }
         }
-        ApiRequest::MyPlaylists { offset } => ApiResponse::MyPlaylists {
+        ApiRequest::MyPlaylists { offset, generation } => ApiResponse::MyPlaylists {
             offset,
+            generation,
             result: routed!(my_playlists(offset, 50)),
         },
         ApiRequest::Playlist { id, generation } => ApiResponse::Playlist {
@@ -2245,6 +2240,7 @@ struct CachedPlaylist {
     next_offset: Option<u32>,
 }
 
+#[cfg(test)]
 fn write_cached_playlist(path: &std::path::Path, cached: &CachedPlaylist) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -2310,6 +2306,29 @@ fn playback_credentials(account: Option<AccountId>, access_token: String) -> Opt
 #[cfg(test)]
 mod authorization_tests {
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_deadline_allows_the_final_access_point_fallback() {
+        let started = tokio::time::Instant::now();
+        let result = connect_engine_with_deadline(async {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            for access_point in 0..6 {
+                for retry in 0..2 {
+                    if (access_point, retry) == (5, 1) {
+                        return access_point;
+                    }
+                    let stalled =
+                        tokio::time::timeout(Duration::from_secs(5), std::future::pending::<()>())
+                            .await;
+                    assert!(stalled.is_err());
+                }
+            }
+            unreachable!()
+        })
+        .await;
+        assert_eq!(result.unwrap(), 5);
+        assert_eq!(started.elapsed(), Duration::from_secs(65));
+    }
 
     fn worker(
         name: &str,

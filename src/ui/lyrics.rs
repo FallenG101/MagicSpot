@@ -1,4 +1,4 @@
-//! The words of the playing track, in a side panel that follows the song.
+//! The words of the playing track, in a side panel or full-window page.
 
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Align, Frame, Layout, Margin, Sense};
@@ -12,6 +12,12 @@ use super::widgets;
 
 /// How long a line takes to light up or fade.
 const LIGHT_UP_SECONDS: f32 = 0.22;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Surface {
+    Panel,
+    FullPage,
+}
 
 fn blend(from: egui::Color32, to: egui::Color32, t: f32) -> egui::Color32 {
     let t = t.clamp(0.0, 1.0);
@@ -264,6 +270,18 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
                 {
                     app.actions.push(Action::ToggleLyricsPanel);
                 }
+                if theme::icon_button(
+                    ui,
+                    Icon::Expand,
+                    18.0,
+                    palette.secondary,
+                    palette.text,
+                    "Open full lyrics page",
+                )
+                .clicked()
+                {
+                    app.actions.push(Action::ToggleLyricsFullPage);
+                }
                 let loaded = matches!(&app.lyrics, Loadable::Loaded(Some(_)));
                 if loaded
                     && !app.lyrics_following
@@ -280,7 +298,7 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
             track_hero(app, ui, &now, spacious);
             ui.add_space(4.0);
         }
-        contents(app, ui);
+        contents(app, ui, Surface::Panel);
     });
     let current_width = response.response.rect.width();
     if (app.settings.lyrics_width - current_width).abs() > 1.0 {
@@ -290,8 +308,163 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
-fn contents(app: &mut App, ui: &mut egui::Ui) {
+/// A reading view that uses the whole content area while retaining playback
+/// controls along the bottom of the window.
+pub fn full_page(app: &mut App, root: &mut egui::Ui) {
     let palette = app.palette;
+    let tint = app.now_playing_tint().unwrap_or(palette.accent);
+    let (top, bottom) = if palette.dark {
+        (
+            blend(egui::Color32::from_rgb(20, 37, 58), tint, 0.04),
+            blend(egui::Color32::from_rgb(10, 14, 18), palette.window, 0.20),
+        )
+    } else {
+        (blend(palette.window, tint, 0.12), palette.window)
+    };
+    egui::CentralPanel::default()
+        .frame(Frame::new().fill(palette.window))
+        .show(root, |ui| {
+            let rect = ui.max_rect();
+            widgets::paint_vertical_gradient(ui, rect, top, bottom);
+            let inner = rect.shrink2(egui::vec2(32.0, 16.0));
+            let mut page = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(inner)
+                    .layout(Layout::top_down(Align::Min)),
+            );
+            let chrome = super::window_controls_reservation(
+                page.ctx(),
+                false,
+                false,
+                page.available_width(),
+            );
+            page.add_space(chrome.topbar_top);
+            let header = egui::Rect::from_min_size(
+                page.cursor().min,
+                egui::vec2(page.available_width(), 36.0),
+            );
+            super::titlebar_drag(&mut page, header);
+            page.horizontal(|ui| {
+                theme::text(ui, "Lyrics", theme::semibold(20.0), palette.text);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.add_space(chrome.topbar_width);
+                    if theme::icon_button(
+                        ui,
+                        Icon::Shrink,
+                        18.0,
+                        palette.secondary,
+                        palette.text,
+                        "Return to lyrics panel",
+                    )
+                    .clicked()
+                    {
+                        app.actions.push(Action::ToggleLyricsFullPage);
+                    }
+                    if !app.lyrics_following
+                        && matches!(&app.lyrics, Loadable::Loaded(Some(_)))
+                        && theme::pill_button(ui, &palette, "Follow", false).clicked()
+                    {
+                        app.lyrics_following = true;
+                        app.lyrics_line_shown = None;
+                    }
+                });
+            });
+            page.add_space(52.0);
+            let width = page.available_width().min(1180.0);
+            let height = page.available_height();
+            let body = egui::Rect::from_min_size(
+                egui::pos2(
+                    page.max_rect().center().x - width * 0.5,
+                    page.cursor().min.y,
+                ),
+                egui::vec2(width, height),
+            );
+            let mut page = page.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(body)
+                    .layout(Layout::top_down(Align::Min)),
+            );
+            let now = app.now_playing();
+            if width >= 880.0 && height >= 400.0 {
+                let left_width = (width * 0.43).min(540.0);
+                let gap = (width * 0.045).clamp(28.0, 68.0);
+                let right_width = (width - left_width - gap - 8.0).max(240.0);
+                page.horizontal(|ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(left_width, height),
+                        Layout::top_down(Align::Min),
+                        |ui| {
+                            let cover_size = (left_width - 12.0)
+                                .min((height - 94.0).max(220.0))
+                                .min(500.0);
+                            ui.add_space(((height - cover_size - 72.0) * 0.12).max(0.0));
+                            let (cover, _) = ui
+                                .allocate_exact_size(egui::Vec2::splat(cover_size), Sense::hover());
+                            widgets::paint_shadow(ui, &palette, cover, 12.0);
+                            widgets::paint_cover(
+                                ui,
+                                &palette,
+                                now.as_ref().and_then(|now| {
+                                    now.art_url.as_deref().or(now.art_small.as_deref())
+                                }),
+                                cover,
+                                12.0,
+                                Icon::Music,
+                                Some(app.backend.art()),
+                            );
+                            if let Some(now) = now.as_ref() {
+                                ui.add_space(14.0);
+                                theme::text(ui, &now.title, theme::bold(24.0), palette.text);
+                                ui.add_space(2.0);
+                                theme::text(
+                                    ui,
+                                    &now.subtitle,
+                                    theme::regular(15.0),
+                                    palette.secondary,
+                                );
+                            }
+                        },
+                    );
+                    ui.add_space(gap);
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(right_width, height),
+                        Layout::top_down(Align::Min),
+                        |ui| contents(app, ui, Surface::FullPage),
+                    );
+                });
+            } else {
+                if let Some(now) = now.as_ref() {
+                    let cover_size = (width * 0.20).clamp(84.0, 132.0);
+                    page.horizontal(|ui| {
+                        let (cover, _) =
+                            ui.allocate_exact_size(egui::Vec2::splat(cover_size), Sense::hover());
+                        widgets::paint_cover(
+                            ui,
+                            &palette,
+                            now.art_url.as_deref().or(now.art_small.as_deref()),
+                            cover,
+                            10.0,
+                            Icon::Music,
+                            Some(app.backend.art()),
+                        );
+                        ui.vertical(|ui| {
+                            ui.add_space(cover_size * 0.18);
+                            theme::text(ui, &now.title, theme::bold(22.0), palette.text);
+                            theme::text(ui, &now.subtitle, theme::regular(14.0), palette.secondary);
+                        });
+                    });
+                    page.add_space(16.0);
+                }
+                contents(app, &mut page, Surface::FullPage);
+            }
+        });
+}
+
+fn contents(app: &mut App, ui: &mut egui::Ui, surface: Surface) {
+    let palette = app.palette;
+    if surface == Surface::FullPage {
+        ui.spacing_mut().scroll.fade.strength = 0.0;
+    }
     let Some(now) = app.now_playing() else {
         widgets::empty_state(
             ui,
@@ -344,12 +517,23 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
     let follow = app.lyrics_following && app.lyrics_line_shown != Some(active);
     // Keep the font weight fixed so highlighting never changes line wrapping
     // or shifts the scroll target. Only colour animates, for 220 ms.
-    let line_size = f32::from(app.settings.lyrics_font_size.clamp(20, 44));
+    let line_size = (f32::from(app.settings.lyrics_font_size.clamp(20, 44))
+        - if surface == Surface::FullPage {
+            2.0
+        } else {
+            0.0
+        })
+    .max(20.0);
     let line_gap = line_size * (f32::from(app.settings.lyrics_line_spacing.clamp(35, 110)) / 100.0);
     let alignment = app.settings.lyrics_alignment;
-    let focus_padding = (ui.available_height() * 0.5 - line_size).max(12.0);
+    let viewport_height = ui.available_height();
+    let focus_padding = if surface == Surface::FullPage {
+        viewport_height * 0.82
+    } else {
+        (viewport_height * 0.5 - line_size).max(12.0)
+    };
     let mut scroll_area = egui::ScrollArea::vertical()
-        .id_salt(("lyrics-scroll", &now.uri))
+        .id_salt(("lyrics-scroll", surface == Surface::FullPage, &now.uri))
         .animated(true)
         .auto_shrink([false, false]);
     if lyrics.synced && active.is_none() {
@@ -377,7 +561,13 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 LIGHT_UP_SECONDS,
             );
             let distance = active.map_or(0, |current| current.abs_diff(index));
-            let quiet = if lyrics.synced && active.is_some() {
+            let quiet = if lyrics.synced && active.is_some() && surface == Surface::FullPage {
+                blend(
+                    palette.secondary,
+                    palette.dim,
+                    (0.64 + distance as f32 * 0.04).min(0.80),
+                )
+            } else if lyrics.synced && active.is_some() {
                 blend(
                     palette.secondary,
                     palette.dim,
@@ -434,7 +624,12 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
             } else {
                 lyric_galley(ui, text, font.clone(), color, width, alignment)
             };
-            let glow = app.settings.lyrics_glow.then(|| {
+            let glow = (app.settings.lyrics_glow || (lyrics.synced && is_active)).then(|| {
+                let opacity = if is_active {
+                    if app.settings.lyrics_glow { 68 } else { 42 }
+                } else {
+                    28
+                };
                 lyric_galley(
                     ui,
                     text,
@@ -443,7 +638,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                         palette.accent.r(),
                         palette.accent.g(),
                         palette.accent.b(),
-                        34,
+                        opacity,
                     ),
                     width,
                     alignment,
@@ -461,7 +656,12 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 }
             }
             if is_active && follow {
-                ui.scroll_to_rect(rect, Some(Align::Center));
+                let target = if surface == Surface::FullPage {
+                    rect.translate(egui::vec2(0.0, viewport_height * 0.31))
+                } else {
+                    rect
+                };
+                ui.scroll_to_rect(target, Some(Align::Center));
             }
             ui.add_space(line_gap);
         }

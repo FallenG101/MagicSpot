@@ -12,6 +12,14 @@ use super::widgets::{SliderEvent, thin_slider};
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
+    let (background, bar_fill) = if app.show_lyrics_full_page && palette.dark {
+        (
+            egui::Color32::from_rgb(12, 16, 20),
+            egui::Color32::from_rgb(19, 23, 27),
+        )
+    } else {
+        (palette.window, palette.panel)
+    };
     egui::Panel::bottom("player-bar")
         .exact_size(theme::PLAYER_BAR_HEIGHT + 12.0)
         .resizable(false)
@@ -19,14 +27,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         // The panel owns the whole bottom strip, including the spacing around
         // the rounded bar. Painting it with the window colour prevents egui's
         // root fill from showing through as a mismatched band.
-        .frame(Frame::new().fill(palette.window))
+        .frame(Frame::new().fill(background))
         .show(ui, |ui| {
             let outer = ui.max_rect();
             let rect = Rect::from_min_max(
                 pos2(outer.left() + 10.0, outer.top() + 4.0),
                 pos2(outer.right() - 10.0, outer.bottom() - 8.0),
             );
-            ui.painter().rect_filled(rect, 14.0, palette.panel);
+            ui.painter().rect_filled(rect, 14.0, bar_fill);
             ui.painter().rect_stroke(
                 rect,
                 14.0,
@@ -722,7 +730,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>) {
         ui,
         Icon::Mic,
         18.0,
-        if app.show_lyrics_panel {
+        if app.show_lyrics_panel || app.show_lyrics_full_page {
             palette.accent
         } else {
             palette.secondary

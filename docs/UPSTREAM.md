@@ -30,6 +30,14 @@ playback, API, platform, accessibility, and performance integrations remain
 manageable and worthwhile. Review upstream weekly or before each substantial
 MagicSpot feature batch.
 
+At the 2026-09-27 audit, upstream (now named Spotifast on GitHub) was 291
+commits ahead of the shared fork point and MagicSpot was 36 commits ahead.
+The large-playlist row and sort optimizations, incremental playlist cache
+checkpoints, stale library-page rejection, and playback access-point deadline
+were adapted into a focused development batch. The cache format reads older
+whole-playlist JSON checkpoints and publishes new append-only row blocks through
+an atomic manifest.
+
 Keep the feature-rich interface and branding in MagicSpot. Generic fixes for
 playback, Spotify API behavior, accessibility, performance, or platform support
 are good candidates for small upstream pull requests. This keeps useful work

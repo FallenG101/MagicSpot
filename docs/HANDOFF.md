@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-26. This is the starting point for a new maintainer, coding
+Updated 2026-09-27. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -9,18 +9,19 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The latest user release is **v2.0.1**, adding album, playlist, and startup
-  timing markers, a timing summary script, a 512 MiB artwork disk-cache target,
-  and shared concurrent artwork fetches. Formatting, all 304 demo tests,
-  strict Clippy, the release build, and Windows/macOS/Linux CI passed. The
-  Windows installer, portable ZIP, universal macOS DMG, and checksums are
-  published. Real cold/warm performance comparison remains pending because
-  Spotify rate-limited the first live run.
+- The v2.1.0 release adds a full-window lyrics view, a slightly stronger active
+  lyric glow, faster playlist rendering and sorting, incremental playlist
+  cache checkpoints, stale library-page rejection, and a longer playback
+  connection deadline. Formatting, all 307 demo tests, strict Clippy, and the
+  local release build pass. Comparative cold and warm timing results remain
+  pending because Spotify rate-limited the first live run.
 - Windows and macOS packaging are manual GitHub Actions jobs. A complete
   published release includes the Windows installer and portable ZIP, a
   universal macOS DMG, checksum files, and GitHub source archives.
 - Main may contain documentation or development commits newer than the latest
   release tag. Do not bump or tag a new version for routine changes.
+- Playlist cache files from earlier versions remain readable after the
+  incremental checkpoint format change.
 - The repository is public. Standard GitHub-hosted runners are therefore free,
   but all workflows remain intentionally manual so cross-platform checks and
   packaging happen at deliberate milestones. Continue development with local
@@ -69,14 +70,16 @@ presented as specific to this installation.
 - Playlist and album pages use a rounded collection stage with metadata on the
   left and large artwork on the right. It stacks vertically below 700 points;
   playlist filtering moves below the action row below 620 points.
-- Lyrics use a resizable right panel. Drag its left edge to change size; there
-  is no expand button or separate full-screen mode.
+- Lyrics use a resizable right panel and a full-window reading view. The
+  panel's expand button or `Shift+L` opens it; its shrink button or `Esc`
+  returns to the panel. The player bar remains visible in both views.
 - The lyrics panel uses one edge-to-edge blurred-art canvas inside its rounded
   frame. Its compact, unframed album header and scrolling text deliberately
   share that surface; do not restore the separate opaque album card or dark
   scroll-edge masks.
-- Synced lines follow and center the active lyric. Manual scrolling disables
-  following until **Follow** is selected or a line is clicked.
+- Synced lines follow the active lyric. The panel centers it; the full-window
+  view keeps it higher so more upcoming lines remain visible. Manual scrolling
+  disables following until **Follow** is selected or a line is clicked.
 - The list starts with a fixed 16-point inset. Do not restore a viewport-sized
   spacer above the first line; it creates the large blank area fixed in v0.7.4.
 - Lyric size, line spacing, left/center alignment, Inter/Manrope/Lora faces,
@@ -271,7 +274,7 @@ are the strongest candidates to contribute independently to Fastpotify.
 
 ## Near-term backlog
 
-- Exercise the v2.0.1 connection, playback authorization, custom theme, and
+- Exercise the v2.1.0 connection, playback authorization, custom theme, and
   local playback flows across varied real Spotify accounts and devices.
 - Continue profiling genuinely cold CDN starts and skips issued before the
   preload cushion is ready; preserve the new fast queued-transition path.

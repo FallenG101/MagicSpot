@@ -91,6 +91,7 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             key(Modifiers::NONE, Key::R, Action::CycleRepeat);
             key(Modifiers::NONE, Key::Q, Action::ToggleQueuePanel);
             key(Modifiers::NONE, Key::L, Action::ToggleLyricsPanel);
+            key(Modifiers::SHIFT, Key::L, Action::ToggleLyricsFullPage);
             key(Modifiers::NONE, Key::Slash, Action::FocusSearch);
         }
     });
@@ -141,6 +142,8 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
             app.actions.push(Action::CloseDialog);
         } else if app.show_devices {
             app.show_devices = false;
+        } else if app.show_lyrics_full_page {
+            app.actions.push(Action::ToggleLyricsFullPage);
         } else if app.show_lyrics_panel {
             app.actions.push(Action::ToggleLyricsPanel);
         } else if app.show_queue_panel {
@@ -166,10 +169,11 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
     ("R", "Cycle repeat"),
     ("Q", "Show the queue"),
     ("L", "Show the lyrics"),
+    ("Shift+L", "Open the full lyrics page"),
     (platform_shortcut("Ctrl+F  or  /", "Cmd+F  or  /"), "Search"),
     (SIDEBAR_SHORTCUT, "Show or hide the sidebar"),
     ("Alt+←  /  Alt+→", "Back or forward"),
-    ("Esc", "Close the open popup or side panel"),
+    ("Esc", "Close a popup or panel, or return from full lyrics"),
     (platform_shortcut("Ctrl+H", "Cmd+Shift+H"), "Home"),
     (platform_shortcut("Ctrl+L", "Cmd+L"), "Liked Songs"),
     (

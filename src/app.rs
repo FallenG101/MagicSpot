@@ -303,6 +303,7 @@ pub struct App {
     pub dialog: Option<Dialog>,
     pub show_queue_panel: bool,
     pub show_lyrics_panel: bool,
+    pub show_lyrics_full_page: bool,
     /// The track the lyrics below are for.
     pub lyrics_uri: Option<String>,
     /// `Loaded(None)` when no lyrics are available.
@@ -605,6 +606,7 @@ impl App {
             dialog: None,
             show_queue_panel: session.queue_open.unwrap_or(false),
             show_lyrics_panel: false,
+            show_lyrics_full_page: false,
             lyrics_uri: None,
             lyrics: Loadable::NotLoaded,
             lyrics_following: true,
@@ -1460,7 +1462,10 @@ impl App {
     }
 
     fn reset_data(&mut self) {
-        self.library = Library::default();
+        self.library = Library {
+            playlists_generation: self.library.playlists_generation,
+            ..Library::default()
+        };
         self.home = HomeData::default();
         self.playlist_pages.clear();
         self.album_pages.clear();
@@ -1863,7 +1868,7 @@ impl App {
         if matches!(self.page(), Page::Queue) || self.show_queue_panel {
             self.refresh_queue(true);
         }
-        if self.show_lyrics_panel {
+        if self.show_lyrics_panel || self.show_lyrics_full_page {
             self.request_lyrics();
         }
     }
@@ -2315,7 +2320,12 @@ impl App {
         }
         self.library.playlists = Loadable::Loading;
         self.library.playlists_next = None;
-        self.backend.api(ApiRequest::MyPlaylists { offset: 0 });
+        self.library.playlists_asked = None;
+        self.library.playlists_generation += 1;
+        self.backend.api(ApiRequest::MyPlaylists {
+            offset: 0,
+            generation: self.library.playlists_generation,
+        });
     }
 
     /// Reuse metadata already shown on a card while the detail request runs.
@@ -2709,7 +2719,11 @@ impl App {
             }
             Page::Home => {
                 if let Some(offset) = self.library.playlists_next.take() {
-                    self.backend.api(ApiRequest::MyPlaylists { offset });
+                    self.library.playlists_asked = Some(offset);
+                    self.backend.api(ApiRequest::MyPlaylists {
+                        offset,
+                        generation: self.library.playlists_generation,
+                    });
                 }
             }
             _ => {}
@@ -3551,8 +3565,13 @@ impl App {
                     self.home.discover = std::mem::take(&mut self.home.discover_pending);
                 }
             }
-            ApiResponse::MyPlaylists { offset, result } => match result {
+            ApiResponse::MyPlaylists {
+                offset, generation, ..
+            } if generation != self.library.playlists_generation
+                || (offset > 0 && self.library.playlists_asked != Some(offset)) => {}
+            ApiResponse::MyPlaylists { offset, result, .. } => match result {
                 Ok(page) => {
+                    self.library.playlists_asked = None;
                     let next_offset = page.next_offset();
                     match &mut self.library.playlists {
                         Loadable::Loaded(existing) if offset > 0 => existing.extend(page.items),
@@ -3572,6 +3591,7 @@ impl App {
                     }
                 }
                 Err(error) => {
+                    self.library.playlists_asked = None;
                     if offset == 0 {
                         self.library.playlists = Loadable::Failed(error.to_string());
                     } else {
@@ -3675,6 +3695,7 @@ impl App {
                 let mut uris = Vec::new();
                 let mut adders: Vec<String> = Vec::new();
                 let mut tracks = Vec::new();
+                let cache_key = Page::Playlist(id.clone());
                 if let Some(page) = self.playlist_pages.get_mut(&id) {
                     match result {
                         _ if page
@@ -3706,8 +3727,28 @@ impl App {
                                 .filter(|id| !id.is_empty())
                                 .collect();
                             page.contributors.extend(adders.iter().cloned());
+                            let extends_cached_rows = offset > 0
+                                && page.items.loaded_once
+                                && page.items.next_offset == Some(offset)
+                                && page.items.total == Some(items.total)
+                                && u32::try_from(page.items.items.len())
+                                    .ok()
+                                    .and_then(|len| page.items.base_offset.checked_add(len))
+                                    == Some(offset)
+                                && self.table_rows.get(&cache_key).is_some_and(|cache| {
+                                    cache.generation == generation
+                                        && cache.items_revision == page.items.revision
+                                        && cache.user_names_revision == self.user_names_revision
+                                        && cache.playlist_positions.is_some()
+                                        && cache.playlist_raw_count == page.items.items.len()
+                                });
                             page.items.absorb(offset, items);
                             page.items_generation = generation;
+                            if extends_cached_rows
+                                && let Some(cache) = self.table_rows.get_mut(&cache_key)
+                            {
+                                cache.playlist_append_revision = Some(page.items.revision);
+                            }
                         }
                         Err(error) => page.items.fail(friendly_page_error(&error)),
                     }
@@ -4384,6 +4425,7 @@ impl App {
     }
 
     pub fn open(&mut self, page: Page) {
+        self.show_lyrics_full_page = false;
         self.discard_theme_preview_before(&page);
         self.touch_page(&page);
         if *self.page() == page {
@@ -5582,6 +5624,7 @@ impl App {
             }
             Action::Back => {
                 if self.can_go_back() {
+                    self.show_lyrics_full_page = false;
                     let destination = self.history[self.history_index - 1].clone();
                     self.discard_theme_preview_before(&destination);
                     self.history_index -= 1;
@@ -5595,6 +5638,7 @@ impl App {
             }
             Action::Forward => {
                 if self.can_go_forward() {
+                    self.show_lyrics_full_page = false;
                     let destination = self.history[self.history_index + 1].clone();
                     self.discard_theme_preview_before(&destination);
                     self.history_index += 1;
@@ -5639,6 +5683,7 @@ impl App {
                 if !matches!(self.page(), Page::Queue) && !self.show_queue_panel {
                     self.show_queue_panel = true;
                     self.show_lyrics_panel = false;
+                    self.show_lyrics_full_page = false;
                 }
                 self.refresh_queue(true);
             }
@@ -6025,6 +6070,7 @@ impl App {
             }
             Action::SignOut => {
                 self.backend.send(Command::SignOut);
+                self.show_lyrics_full_page = false;
                 self.history = vec![Page::Home];
                 self.history_index = 0;
             }
@@ -6036,16 +6082,32 @@ impl App {
                 self.show_queue_panel = !self.show_queue_panel;
                 if self.show_queue_panel {
                     self.show_lyrics_panel = false;
+                    self.show_lyrics_full_page = false;
                     self.refresh_queue(true);
                 }
             }
             Action::ToggleLyricsPanel => {
-                self.show_lyrics_panel = !self.show_lyrics_panel;
-                if self.show_lyrics_panel {
+                if self.show_lyrics_full_page {
+                    self.show_lyrics_full_page = false;
+                    self.show_lyrics_panel = false;
+                } else {
+                    self.show_lyrics_panel = !self.show_lyrics_panel;
+                    if self.show_lyrics_panel {
+                        self.show_queue_panel = false;
+                        self.lyrics_following = true;
+                        self.request_lyrics();
+                    }
+                }
+            }
+            Action::ToggleLyricsFullPage => {
+                self.show_lyrics_full_page = !self.show_lyrics_full_page;
+                self.show_lyrics_panel = !self.show_lyrics_full_page;
+                if self.show_lyrics_full_page {
                     self.show_queue_panel = false;
-                    self.lyrics_following = true;
                     self.request_lyrics();
                 }
+                self.lyrics_following = true;
+                self.lyrics_line_shown = None;
             }
             Action::ToggleDevicesPopup => {
                 self.show_devices = !self.show_devices;
@@ -6897,6 +6959,8 @@ fn evict_lru_map<V>(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
 
     #[test]
@@ -8024,6 +8088,27 @@ mod tests {
     }
 
     #[test]
+    fn full_lyrics_returns_to_panel_and_shortcut_can_close_both() {
+        let mut app = test_app("full-lyrics-state");
+        let ctx = egui::Context::default();
+        app.apply(Action::ToggleLyricsPanel, &ctx);
+        assert!(app.show_lyrics_panel);
+
+        app.apply(Action::ToggleLyricsFullPage, &ctx);
+        assert!(app.show_lyrics_full_page);
+        assert!(!app.show_lyrics_panel);
+
+        app.apply(Action::ToggleLyricsFullPage, &ctx);
+        assert!(!app.show_lyrics_full_page);
+        assert!(app.show_lyrics_panel);
+
+        app.apply(Action::ToggleLyricsFullPage, &ctx);
+        app.apply(Action::ToggleLyricsPanel, &ctx);
+        assert!(!app.show_lyrics_full_page);
+        assert!(!app.show_lyrics_panel);
+    }
+
+    #[test]
     fn slow_spotify_suggests_a_personal_app_once_a_day() {
         let mut app = test_app("personal-app-nudge");
         app.auth = AuthStatus::Connected {
@@ -8391,6 +8476,45 @@ mod tests {
     }
 
     #[test]
+    fn playlist_library_rejects_stale_and_duplicate_pages() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        app.library.playlists_generation = 2;
+        app.library.playlists = Loadable::Loading;
+        let answer = |generation, offset, id: &str| ApiResponse::MyPlaylists {
+            generation,
+            offset,
+            result: Ok(crate::api::models::Page {
+                items: vec![Playlist {
+                    id: id.into(),
+                    ..Playlist::default()
+                }],
+                total: 2,
+                limit: 1,
+                offset,
+                next: (offset == 0).then(|| "more".into()),
+            }),
+        };
+        app.handle_api(answer(1, 0, "old"));
+        assert!(app.library.playlists.is_loading());
+        app.handle_api(answer(2, 0, "first"));
+        assert_eq!(app.library.playlists.get().unwrap().len(), 1);
+        app.handle_api(answer(1, 1, "old-later"));
+        assert_eq!(app.library.playlists.get().unwrap().len(), 1);
+        app.handle_api(answer(2, 1, "second"));
+        app.handle_api(answer(2, 1, "duplicate"));
+        let ids: Vec<_> = app
+            .library
+            .playlists
+            .get()
+            .unwrap()
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect();
+        assert_eq!(ids, ["first", "second"]);
+    }
+
+    #[test]
     fn playlist_detail_starts_with_library_metadata() {
         let mut app = headless_app();
         app.auth = AuthStatus::Connected {
@@ -8648,6 +8772,162 @@ mod tests {
             })),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn playlist_row_cache_extends_without_cloning_old_rows_or_losing_null_slots() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        app.playlist_pages.insert(
+            "rows".into(),
+            PlaylistPage {
+                items: PagedList {
+                    items: vec![
+                        cached_playlist_row("spotify:track:first"),
+                        Default::default(),
+                    ],
+                    total: Some(100),
+                    next_offset: Some(2),
+                    loaded_once: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let cached = |app: &mut App| {
+            let page = app.playlist_pages.remove("rows").unwrap();
+            let result = crate::ui::collection::playlist_cached_table_items(
+                app,
+                "rows",
+                page.generation,
+                &page.items,
+                None,
+                "",
+            );
+            app.playlist_pages.insert("rows".into(), page);
+            result
+        };
+        let (rows, positions, _) = cached(&mut app);
+        assert_eq!(positions.as_slice(), [0]);
+        let old_rows = Arc::as_ptr(&rows);
+        let old_positions = Arc::as_ptr(&positions);
+        drop(rows);
+        drop(positions);
+
+        app.handle_api(ApiResponse::PlaylistItems {
+            id: "rows".into(),
+            offset: 2,
+            generation: 0,
+            result: Ok(crate::api::models::Page {
+                items: vec![
+                    cached_playlist_row("spotify:track:second"),
+                    Default::default(),
+                ],
+                total: 100,
+                limit: 2,
+                offset: 2,
+                next: Some("next".into()),
+            }),
+        });
+        let (rows, positions, _) = cached(&mut app);
+        assert_eq!(Arc::as_ptr(&rows), old_rows, "old rows were rebuilt");
+        assert_eq!(Arc::as_ptr(&positions), old_positions);
+        assert_eq!(positions.as_slice(), [0, 2]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].0.uri(), "spotify:track:second");
+    }
+
+    #[test]
+    fn playlist_row_cache_rebuilds_for_edits_refreshes_and_position_jumps() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        app.playlist_pages.insert(
+            "rows".into(),
+            PlaylistPage {
+                items: PagedList {
+                    items: vec![cached_playlist_row("spotify:track:first")],
+                    total: Some(100),
+                    next_offset: Some(1),
+                    loaded_once: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let cached = |app: &mut App, owner_name: &str| {
+            let page = app.playlist_pages.remove("rows").unwrap();
+            let result = crate::ui::collection::playlist_cached_table_items(
+                app,
+                "rows",
+                page.generation,
+                &page.items,
+                None,
+                owner_name,
+            );
+            app.playlist_pages.insert("rows".into(), page);
+            result
+        };
+        let (rows, _, _) = cached(&mut app, "");
+        let first = Arc::as_ptr(&rows);
+        drop(rows);
+
+        let (rows, _, _) = cached(&mut app, "renamed owner");
+        assert_ne!(Arc::as_ptr(&rows), first);
+        let first = Arc::as_ptr(&rows);
+        drop(rows);
+
+        let page = app.playlist_pages.get_mut("rows").unwrap();
+        page.items
+            .items
+            .insert(0, cached_playlist_row("spotify:track:added"));
+        page.items.revision += 1;
+        let (rows, positions, _) = cached(&mut app, "renamed owner");
+        assert_ne!(Arc::as_ptr(&rows), first);
+        assert_eq!(rows[0].0.uri(), "spotify:track:added");
+        assert_eq!(positions.as_slice(), [0, 1]);
+        drop(rows);
+        drop(positions);
+
+        app.handle_api(ApiResponse::PlaylistItems {
+            id: "rows".into(),
+            offset: 0,
+            generation: 0,
+            result: Ok(crate::api::models::Page {
+                items: vec![cached_playlist_row("spotify:track:refreshed")],
+                total: 100,
+                limit: 1,
+                offset: 0,
+                next: Some("next".into()),
+            }),
+        });
+        let (rows, positions, _) = cached(&mut app, "renamed owner");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].0.uri(), "spotify:track:refreshed");
+        assert_eq!(positions.as_slice(), [0]);
+        drop(rows);
+        drop(positions);
+
+        app.playlist_pages
+            .get_mut("rows")
+            .unwrap()
+            .items
+            .reset_at(50);
+        app.handle_api(ApiResponse::PlaylistItems {
+            id: "rows".into(),
+            offset: 50,
+            generation: 0,
+            result: Ok(crate::api::models::Page {
+                items: vec![cached_playlist_row("spotify:track:window")],
+                total: 100,
+                limit: 1,
+                offset: 50,
+                next: Some("next".into()),
+            }),
+        });
+        let (rows, positions, _) = cached(&mut app, "renamed owner");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].0.uri(), "spotify:track:window");
+        assert_eq!(positions.as_slice(), [0]);
     }
 
     #[test]
