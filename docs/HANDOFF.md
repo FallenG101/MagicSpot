@@ -1,6 +1,6 @@
 # MagicSpot maintainer handoff
 
-Updated 2026-09-27. This is the starting point for a new maintainer, coding
+Updated 2026-10-02. This is the starting point for a new maintainer, coding
 agent, or chat that does not have the project's conversation history.
 
 ## Current baseline
@@ -9,12 +9,13 @@ agent, or chat that does not have the project's conversation history.
   `https://github.com/FallenG101/MagicSpot.git`.
 - Fastpotify remains configured as the `upstream` remote at
   `https://github.com/crmne/fastpotify.git`.
-- The v2.1.0 release adds a full-window lyrics view, a slightly stronger active
-  lyric glow, faster playlist rendering and sorting, incremental playlist
-  cache checkpoints, stale library-page rejection, and a longer playback
-  connection deadline. Formatting, all 307 demo tests, strict Clippy, and the
-  local release build pass. Comparative cold and warm timing results remain
-  pending because Spotify rate-limited the first live run.
+- The v3.0.0 milestone adds browsable Radio, playlist clipboard editing,
+  keyboard playlist picking, a Library cover grid, narrow-window layout fixes,
+  smooth full-window lyrics backdrops, safer detail updates and occurrence
+  removal, a local Library ordering explanation/reset, and full-range playlist
+  scrolling. Formatting, 329 tests, strict Clippy, and the local release build
+  pass. See `docs/UPSTREAM_FEATURE_IMPLEMENTATION.md` for details. Live Spotify
+  validation of the new Radio and mutation paths remains pending.
 - Windows and macOS packaging are manual GitHub Actions jobs. A complete
   published release includes the Windows installer and portable ZIP, a
   universal macOS DMG, checksum files, and GitHub source archives.

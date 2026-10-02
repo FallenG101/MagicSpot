@@ -23,7 +23,7 @@ Radio uses the existing account-mode routing for recommendations. Spotify's [rec
 
 Playlist edits retain the existing authenticated write routing and scopes. [Playlist detail updates](https://developer.spotify.com/documentation/web-api/reference/change-playlist-details) use optional fields. [Item removal](https://developer.spotify.com/documentation/web-api/reference/remove-items-playlist) uses the playlist snapshot and occurrence positions. Adds and removals are batched in groups of at most 100; removals proceed from higher positions to lower positions so earlier positions stay valid.
 
-Live Spotify requests were not exercised in this session. Account-mode availability, occurrence-specific removal on the current service, playback, and playlist creation must be confirmed with a real account before a release. Automated tests validate request construction and state transitions, not the remote service.
+Live Spotify requests were not exercised in this session. Account-mode availability, occurrence-specific removal on the current service, playback, and playlist creation remain pending real-account validation. Automated tests validate request construction and state transitions, not the remote service.
 
 ## Verification
 

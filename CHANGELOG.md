@@ -3,6 +3,42 @@
 MagicSpot follows semantic version tags for downloadable milestones. Changes
 after the newest tag remain development work until the next release.
 
+## v3.0.0 — 2026-10-02
+
+- Added browsable Radio pages for songs, artists, albums, and playlists, with
+  playback, refresh, save-as-playlist, stale-response protection, and explicit
+  API-access errors. Album/playlist mixes use up to five track seeds from the
+  first 50 items; results can differ from native Spotify Radio. Existing local
+  song radio remains available as a fallback.
+- Added track select-all, copy, cut, and paste using Spotify track URIs/links.
+  Selection follows the displayed loaded rows; text editors keep their normal
+  shortcuts. Read-only cut copies with feedback, and paste requires a writable
+  playlist, resolves missing metadata off the UI thread, and reports duplicates
+  and failures. Playlist writes batch at most 100 items with partial-failure feedback.
+- Added keyboard filtering and Up/Down/Enter selection to Add to playlist,
+  including focus isolation and same-frame search/Enter handling.
+- Added a persisted Library list/grid choice with responsive artwork cards,
+  preserving folders, pins, context menus, track drops, ordering, and keyboard use.
+- Let Settings controls wrap at narrow widths and compact the Library heading
+  within the existing supported window and sidebar size limits.
+- Kept decoded full-window lyrics artwork visible while replacement art loads,
+  used cached/small art as an immediate fallback, and blended backdrop changes
+  while preserving lyric layout, following, tint, and glow.
+- Sent only changed playlist detail fields. Explained Spotify's description
+  clearing limitation while allowing other changed fields to save.
+- Corrected filtered/sorted playlist removal using original occurrence positions
+  and snapshots, preserving duplicate entries, unavailable-row gaps, and
+  relinked track identity. Failed writes reload authoritative playlist data.
+- Explained the first switch to MagicSpot's local Library playlist order and
+  added Reset library order to return to Spotify's ordering.
+- Replaced the large-playlist Go to song input with full-range virtual scrolling
+  and on-demand range loading, protecting pending edits and stale loads.
+- Added settings compatibility and workflow regression coverage. Local Windows
+  formatting, 329 tests, strict Clippy, release build, and demo layout review pass.
+- Known limitation: recommendation access depends on Spotify app/account mode.
+  Live account validation of new Radio and playlist mutations remains pending;
+  automated coverage does not verify Spotify's remote behavior.
+
 ## v2.1.0 — 2026-09-27
 
 - Added a full-window lyrics view with large artwork, responsive lyric layout,
