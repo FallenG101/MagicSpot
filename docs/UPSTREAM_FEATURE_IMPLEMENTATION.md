@@ -39,4 +39,11 @@ Regression coverage includes dirty-field request bodies, duplicate occurrence id
 
 Headless UI checks cover 1280 × 800 and 760 × 520 windows with sidebars at 210, 250, 400, and 440 pixels, list/grid views, folders, pins, and Settings. Demo screenshots were visually inspected for the wide grid, minimum-size grid and Settings, full-window lyrics, and Radio. Screenshot files are local ignored artifacts under `target/scope-*.png`.
 
-Linux/macOS and live Spotify behavior were not tested. The implementation pass did not create a tag or publish a release or installer. The subsequent GitHub push was explicitly requested.
+The initial implementation pass used local Windows verification. The subsequently requested [v3.0.0 release](https://github.com/FallenG101/MagicSpot/releases/tag/v3.0.0) is published as the latest stable milestone with Windows installer/portable ZIP, universal macOS DMG, checksum files, and GitHub source archives. Live Spotify behavior remains unverified.
+
+Release verification subsequently passed:
+
+- [Cross-platform CI](https://github.com/FallenG101/MagicSpot/actions/runs/36973798634): formatting, strict lint, and tests on Windows, Linux, and macOS.
+- [Windows packaging](https://github.com/FallenG101/MagicSpot/actions/runs/36973800630): installer and portable ZIP.
+- [Universal macOS packaging](https://github.com/FallenG101/MagicSpot/actions/runs/36973952752): Apple Silicon and Intel binaries combined into the DMG.
+- All five uploaded assets are present and nonempty. The Windows and macOS checksum manifests match GitHub's SHA-256 asset digests. The release is public, neither draft nor prerelease, with user-facing notes and both source archive links.

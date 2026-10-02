@@ -35,6 +35,8 @@ after the newest tag remain development work until the next release.
   and on-demand range loading, protecting pending edits and stale loads.
 - Added settings compatibility and workflow regression coverage. Local Windows
   formatting, 329 tests, strict Clippy, release build, and demo layout review pass.
+  Release CI passed tests on Windows, Linux, and macOS; Windows and universal
+  macOS packaging passed, and uploaded asset checksum manifests were verified.
 - Known limitation: recommendation access depends on Spotify app/account mode.
   Live account validation of new Radio and playlist mutations remains pending;
   automated coverage does not verify Spotify's remote behavior.

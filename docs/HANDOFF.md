@@ -14,8 +14,10 @@ agent, or chat that does not have the project's conversation history.
   smooth full-window lyrics backdrops, safer detail updates and occurrence
   removal, a local Library ordering explanation/reset, and full-range playlist
   scrolling. Formatting, 329 tests, strict Clippy, and the local release build
-  pass. See `docs/UPSTREAM_FEATURE_IMPLEMENTATION.md` for details. Live Spotify
-  validation of the new Radio and mutation paths remains pending.
+  pass. GitHub CI also passes on Windows, Linux, and macOS. The published
+  v3.0.0 release includes the Windows installer/portable ZIP and universal macOS
+  DMG with verified checksum manifests. See `docs/UPSTREAM_FEATURE_IMPLEMENTATION.md`
+  for details. Live Spotify validation of the new Radio and mutation paths remains pending.
 - Windows and macOS packaging are manual GitHub Actions jobs. A complete
   published release includes the Windows installer and portable ZIP, a
   universal macOS DMG, checksum files, and GitHub source archives.
