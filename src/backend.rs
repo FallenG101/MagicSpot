@@ -97,6 +97,10 @@ pub enum ApiRequest {
     TopArtists {
         generation: u64,
     },
+    Radio {
+        uri: String,
+        generation: u64,
+    },
     Recommendations {
         seed_tracks: Vec<String>,
         seed_artists: Vec<String>,
@@ -137,6 +141,12 @@ pub enum ApiRequest {
         description: Option<String>,
         public: Option<bool>,
     },
+    ResolvePlaylistTracks {
+        generation: u64,
+        playlist_id: String,
+        playlist_name: String,
+        uris: Vec<String>,
+    },
     CheckPlaylistDuplicates {
         playlist_id: String,
         playlist_name: String,
@@ -149,7 +159,7 @@ pub enum ApiRequest {
     },
     RemoveFromPlaylist {
         playlist_id: String,
-        uris: Vec<String>,
+        entries: Vec<(String, u32)>,
         snapshot_id: Option<String>,
     },
     ReorderPlaylist {
@@ -295,6 +305,11 @@ pub enum ApiResponse {
         generation: u64,
         result: ApiResult<Vec<Artist>>,
     },
+    Radio {
+        uri: String,
+        generation: u64,
+        result: ApiResult<Vec<Track>>,
+    },
     Recommendations {
         generation: u64,
         result: ApiResult<Vec<Track>>,
@@ -329,6 +344,12 @@ pub enum ApiResponse {
     PlaylistUpdated {
         id: String,
         result: ApiResult<()>,
+    },
+    PlaylistTracksResolved {
+        generation: u64,
+        playlist_id: String,
+        playlist_name: String,
+        result: ApiResult<Vec<Track>>,
     },
     PlaylistDuplicatesChecked {
         playlist_id: String,
@@ -626,6 +647,8 @@ pub struct Backend {
     #[cfg(test)]
     playlist_item_requests: std::sync::Mutex<Vec<(String, u32, u64)>>,
     #[cfg(test)]
+    api_requests: std::sync::Mutex<Vec<ApiRequest>>,
+    #[cfg(test)]
     playlist_sample_requests: std::sync::Mutex<Vec<(String, u32, u64)>>,
 }
 
@@ -687,6 +710,8 @@ impl Backend {
             #[cfg(test)]
             playlist_item_requests: std::sync::Mutex::new(Vec::new()),
             #[cfg(test)]
+            api_requests: std::sync::Mutex::new(Vec::new()),
+            #[cfg(test)]
             playlist_sample_requests: std::sync::Mutex::new(Vec::new()),
         }
     }
@@ -710,7 +735,17 @@ impl Backend {
         let _ = self.commands.send(command);
     }
 
+    #[cfg(test)]
+    pub fn take_api_requests(&self) -> Vec<ApiRequest> {
+        std::mem::take(&mut *self.api_requests.lock().unwrap_or_else(|p| p.into_inner()))
+    }
+
     pub fn api(&self, request: ApiRequest) {
+        #[cfg(test)]
+        self.api_requests
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .push(request.clone());
         #[cfg(test)]
         if let ApiRequest::PlaylistItems {
             id,
@@ -1819,10 +1854,12 @@ fn operation_for(api: &ApiGateway, request: &ApiRequest) -> Operation {
         | ApiRequest::ReorderPlaylist { playlist_id, .. } => {
             Operation::PlaylistMutation(api.playlist_access(playlist_id))
         }
-        ApiRequest::Recommendations { .. }
+        ApiRequest::Radio { .. }
+        | ApiRequest::Recommendations { .. }
         | ApiRequest::ArtistTopTracks { .. }
         | ApiRequest::RelatedArtists { .. } => Operation::UnsupportedDevelopmentMode,
-        ApiRequest::Artist { .. }
+        ApiRequest::ResolvePlaylistTracks { .. }
+        | ApiRequest::Artist { .. }
         | ApiRequest::ArtistAlbums { .. }
         | ApiRequest::Album { .. }
         | ApiRequest::AlbumTracks { .. }
@@ -1907,6 +1944,22 @@ async fn handle(api: &ApiGateway, request: ApiRequest) -> (ApiResponse, Option<A
     }
 
     let response = match request {
+        ApiRequest::Radio { uri, generation } => ApiResponse::Radio {
+            result: routed!(radio(&uri)),
+            uri,
+            generation,
+        },
+        ApiRequest::ResolvePlaylistTracks {
+            generation,
+            playlist_id,
+            playlist_name,
+            uris,
+        } => ApiResponse::PlaylistTracksResolved {
+            generation,
+            playlist_id,
+            playlist_name,
+            result: routed!(resolve_tracks(&uris)),
+        },
         ApiRequest::Me => ApiResponse::Me(routed!(me())),
         ApiRequest::Devices => ApiResponse::Devices(routed!(devices())),
         ApiRequest::PlaybackState { seq } => ApiResponse::PlaybackState {
@@ -2031,12 +2084,12 @@ async fn handle(api: &ApiGateway, request: ApiRequest) -> (ApiResponse, Option<A
         },
         ApiRequest::RemoveFromPlaylist {
             playlist_id,
-            uris,
+            entries,
             snapshot_id,
         } => ApiResponse::PlaylistItemsChanged {
             result: routed!(remove_playlist_items(
                 &playlist_id,
-                &uris,
+                &entries,
                 snapshot_id.as_deref()
             )),
             id: playlist_id,

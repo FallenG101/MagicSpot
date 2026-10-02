@@ -175,6 +175,7 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                                         Page::Album(id) => collection::album(app, ui, &id),
                                         Page::Artist(id) => artist::show(app, ui, &id),
                                         Page::Show(id) => show::show(app, ui, &id),
+                                        Page::Radio(uri) => collection::radio(app, ui, &uri),
                                         Page::Queue => queue::page(app, ui),
                                         Page::Settings => settings::show(app, ui),
                                         Page::Diagnostics => diagnostics::show(app, ui),

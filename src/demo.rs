@@ -686,6 +686,21 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 app.settings.eq_on = true;
                 app.settings.eq_bands_db = crate::eq::PRESETS[13].bands_db;
             }
+            "grid" => app.settings.sidebar_grid = true,
+            "grid-wide" => {
+                app.settings.sidebar_grid = true;
+                app.settings.sidebar_width = 400.0;
+            }
+            "radio" => {
+                let seed = "spotify:track:trk0".to_string();
+                app.radio = Some((
+                    seed.clone(),
+                    1,
+                    Loadable::Loaded((1..20).map(track).collect()),
+                ));
+                app.history.push(Page::Radio(seed));
+                app.history_index = app.history.len() - 1;
+            }
             "art" => app.settings.art_expanded = true,
             "folders" => {
                 use crate::player::RootlistEntry;
@@ -844,6 +859,89 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn playlist_picker_enter_arrows_filter_and_unrelated_focus() {
+        let (ctx, mut app) = accessible_app("picker-keys");
+        let songs = vec![PlayableItem::Track(track(0))];
+        let render = |app: &mut App, events| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(400.0, 500.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    crate::ui::widgets::playlist_picker(ui, app, &songs);
+                },
+            );
+            output.textures_delta.clear();
+            output.platform_output.accesskit_update.unwrap()
+        };
+        render(&mut app, vec![]);
+        render(&mut app, vec![]);
+        let first = app.editable_playlists()[0].0.clone();
+        render(
+            &mut app,
+            vec![keyboard(egui::Key::Enter, egui::Modifiers::NONE)],
+        );
+        assert!(app.actions.iter().any(|action| matches!(action, crate::model::Action::AddToPlaylist { playlist_id, .. } if *playlist_id == first)));
+        app.actions.clear();
+        render(&mut app, vec![]);
+        render(
+            &mut app,
+            vec![keyboard(egui::Key::ArrowDown, egui::Modifiers::NONE)],
+        );
+        render(
+            &mut app,
+            vec![keyboard(egui::Key::Enter, egui::Modifiers::NONE)],
+        );
+        let second = app.editable_playlists()[1].0.clone();
+        assert!(app.actions.iter().any(|action| matches!(action, crate::model::Action::AddToPlaylist { playlist_id, .. } if *playlist_id == second)));
+        app.actions.clear();
+        ctx.memory_mut(|m| m.request_focus(egui::Id::new("unrelated")));
+        render(
+            &mut app,
+            vec![keyboard(egui::Key::Enter, egui::Modifiers::NONE)],
+        );
+        assert!(app.actions.is_empty());
+        render(
+            &mut app,
+            vec![
+                egui::Event::Text("No such playlist xyz".into()),
+                keyboard(egui::Key::Enter, egui::Modifiers::NONE),
+            ],
+        );
+        assert!(app.actions.is_empty());
+        app.backend.shutdown();
+    }
+    #[test]
+    fn list_grid_folders_pins_settings_and_radio_render_at_supported_sizes() {
+        let (ctx, mut app) = accessible_app("scope-layout");
+        for size in [egui::vec2(1280.0, 800.0), egui::vec2(760.0, 520.0)] {
+            for width in [210.0, 250.0, 400.0, 440.0] {
+                for grid in [false, true] {
+                    app.settings.sidebar_width = width;
+                    app.settings.sidebar_grid = grid;
+                    apply_flags(&mut app, None, Some("folders"));
+                    app.settings.pinned_contexts = vec!["spotify:playlist:pl1".into()];
+                    for page in [Page::Home, Page::Settings] {
+                        app.open(page);
+                        for _ in 0..2 {
+                            accessible_frame_at(&ctx, &mut app, size, vec![]);
+                        }
+                    }
+                }
+            }
+        }
+        apply_flags(&mut app, None, Some("radio"));
+        accessible_frame(&ctx, &mut app, vec![]);
+        app.backend.shutdown();
+    }
+
     use super::*;
     use crate::app::AppOptions;
     use crate::paths::AppDirs;
@@ -1140,6 +1238,7 @@ mod tests {
                             ui,
                             &mut app,
                             TrackRow {
+                                playlist_entry: None,
                                 index,
                                 number: Some(index + 1),
                                 item: &item,
@@ -1242,6 +1341,7 @@ mod tests {
                                 ui,
                                 &mut app,
                                 TrackRow {
+                                    playlist_entry: None,
                                     index,
                                     number: Some(index + 1),
                                     item: &item,
@@ -1363,6 +1463,7 @@ mod tests {
                             ui,
                             &mut app,
                             TrackRow {
+                                playlist_entry: None,
                                 index: 0,
                                 number: Some(1),
                                 item: &item,
@@ -1820,6 +1921,7 @@ mod tests {
                 add_uris: vec![],
             },
             Dialog::EditPlaylist {
+                original: ("x".into(), String::new(), false),
                 id: "pl1".into(),
                 name: "x".into(),
                 description: String::new(),

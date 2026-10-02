@@ -747,23 +747,9 @@ impl ApiClient {
         description: Option<&str>,
         public: Option<bool>,
     ) -> Result<()> {
-        let mut body = serde_json::Map::new();
-        if let Some(name) = name {
-            body.insert("name".into(), json!(name));
-        }
-        if let Some(description) = description {
-            body.insert("description".into(), json!(description));
-        }
-        if let Some(public) = public {
-            body.insert("public".into(), json!(public));
-        }
-        self.write(
-            Method::PUT,
-            &format!("/playlists/{id}"),
-            &[],
-            Some(&Value::Object(body)),
-        )
-        .await?;
+        let body = playlist_detail_body(name, description, public);
+        self.write(Method::PUT, &format!("/playlists/{id}"), &[], Some(&body))
+            .await?;
         Ok(())
     }
 
@@ -773,41 +759,50 @@ impl ApiClient {
         uris: &[String],
         position: Option<u32>,
     ) -> Result<Option<String>> {
-        let mut body = json!({ "uris": uris });
-        if let Some(position) = position {
-            body["position"] = json!(position);
+        let mut snapshot = None;
+        for (chunk_index, chunk) in uris.chunks(100).enumerate() {
+            let mut body = json!({ "uris": chunk });
+            if let Some(position) = position {
+                body["position"] = json!(position.saturating_add((chunk_index * 100) as u32));
+            }
+            let value = self
+                .write(
+                    Method::POST,
+                    &format!("/playlists/{id}/items"),
+                    &[],
+                    Some(&body),
+                )
+                .await
+                .map_err(|error| playlist_batch_error(error, chunk_index * 100))?;
+            snapshot = Self::snapshot(value);
         }
-        let value = self
-            .write(
-                Method::POST,
-                &format!("/playlists/{id}/items"),
-                &[],
-                Some(&body),
-            )
-            .await?;
-        Ok(Self::snapshot(value))
+        Ok(snapshot)
     }
 
     pub async fn remove_playlist_items(
         &self,
         id: &str,
-        uris: &[String],
+        entries: &[(String, u32)],
         snapshot_id: Option<&str>,
     ) -> Result<Option<String>> {
-        let entries: Vec<Value> = uris.iter().map(|uri| json!({ "uri": uri })).collect();
-        let mut body = json!({ "items": entries });
-        if let Some(snapshot) = snapshot_id {
-            body["snapshot_id"] = json!(snapshot);
+        let mut ordered = entries.to_vec();
+        ordered.sort_by_key(|(_, position)| std::cmp::Reverse(*position));
+        ordered.dedup();
+        let mut snapshot = snapshot_id.map(str::to_string);
+        for (chunk_index, chunk) in ordered.chunks(100).enumerate() {
+            let body = playlist_removal_body(chunk, snapshot.as_deref());
+            let value = self
+                .write(
+                    Method::DELETE,
+                    &format!("/playlists/{id}/items"),
+                    &[],
+                    Some(&body),
+                )
+                .await
+                .map_err(|error| playlist_batch_error(error, chunk_index * 100))?;
+            snapshot = Self::snapshot(value);
         }
-        let value = self
-            .write(
-                Method::DELETE,
-                &format!("/playlists/{id}/items"),
-                &[],
-                Some(&body),
-            )
-            .await?;
-        Ok(Self::snapshot(value))
+        Ok(snapshot)
     }
 
     pub async fn reorder_playlist(
@@ -1042,6 +1037,73 @@ impl ApiClient {
         self.get(&format!("/episodes/{id}"), &[]).await
     }
 
+    pub async fn resolve_tracks(&self, uris: &[String]) -> Result<Vec<Track>> {
+        let mut resolved: std::collections::HashMap<String, Track> =
+            std::collections::HashMap::new();
+        let mut tracks = Vec::with_capacity(uris.len());
+        for uri in uris {
+            let track = if let Some(track) = resolved.get(uri) {
+                track.clone()
+            } else {
+                let track = self
+                    .track(crate::util::uri_id(uri).unwrap_or_default())
+                    .await?;
+                resolved.insert(uri.clone(), track.clone());
+                track
+            };
+            tracks.push(track);
+        }
+        Ok(tracks)
+    }
+
+    /// Albums/playlists contribute up to five real tracks; Spotify accepts only track/artist seeds.
+    pub async fn radio(&self, uri: &str) -> Result<Vec<Track>> {
+        let id = crate::util::uri_id(uri).unwrap_or_default();
+        let (tracks, artists) = match crate::util::uri_kind(uri) {
+            Some("track") => (vec![id.to_string()], vec![]),
+            Some("artist") => (vec![], vec![id.to_string()]),
+            Some("album") => (
+                self.album_tracks(id, 0, 50)
+                    .await?
+                    .items
+                    .into_iter()
+                    .filter_map(|track| track.id)
+                    .take(5)
+                    .collect(),
+                vec![],
+            ),
+            Some("playlist") => (
+                self.playlist_items(id, 0, 50)
+                    .await?
+                    .items
+                    .iter()
+                    .filter_map(|item| match item.playable() {
+                        Some(PlayableItem::Track(track))
+                            if !track.is_local && track.is_playable != Some(false) =>
+                        {
+                            track.id.clone()
+                        }
+                        _ => None,
+                    })
+                    .take(5)
+                    .collect(),
+                vec![],
+            ),
+            _ => {
+                return Err(ApiError::Decode(
+                    "Radio supports songs, artists, albums, and playlists.".into(),
+                ));
+            }
+        };
+        if tracks.is_empty() && artists.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut tracks = tracks;
+        let mut seen = std::collections::HashSet::new();
+        tracks.retain(|id| seen.insert(id.clone()));
+        self.recommendations(&tracks, &artists, 50).await
+    }
+
     pub async fn recommendations(
         &self,
         seed_tracks: &[String],
@@ -1060,8 +1122,93 @@ impl ApiClient {
     }
 }
 
+fn playlist_batch_error(error: ApiError, completed: usize) -> ApiError {
+    if completed == 0 {
+        return error;
+    }
+    let message = format!(
+        "Playlist update stopped after {completed} songs; earlier batches may have succeeded. {error}"
+    );
+    if let Some(status) = error.status() {
+        ApiError::Status { status, message }
+    } else {
+        ApiError::Network(message)
+    }
+}
+
+fn playlist_removal_body(entries: &[(String, u32)], snapshot: Option<&str>) -> Value {
+    let mut grouped: std::collections::BTreeMap<&str, Vec<u32>> = std::collections::BTreeMap::new();
+    for (uri, position) in entries {
+        grouped.entry(uri).or_default().push(*position);
+    }
+    let items: Vec<Value> = grouped
+        .into_iter()
+        .map(|(uri, positions)| json!({ "uri": uri, "positions": positions }))
+        .collect();
+    let mut body = json!({ "items": items });
+    if let Some(snapshot) = snapshot {
+        body["snapshot_id"] = json!(snapshot);
+    }
+    body
+}
+
+fn playlist_detail_body(
+    name: Option<&str>,
+    description: Option<&str>,
+    public: Option<bool>,
+) -> Value {
+    let mut body = serde_json::Map::new();
+    if let Some(name) = name {
+        body.insert("name".into(), json!(name));
+    }
+    if let Some(description) = description {
+        body.insert("description".into(), json!(description));
+    }
+    if let Some(public) = public {
+        body.insert("public".into(), json!(public));
+    }
+    Value::Object(body)
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn playlist_writes_omit_unchanged_fields_and_target_duplicate_positions() {
+        let duplicates = super::playlist_removal_body(
+            &[
+                ("spotify:track:duplicate".into(), 7),
+                ("spotify:track:duplicate".into(), 3),
+            ],
+            None,
+        );
+        assert_eq!(
+            duplicates,
+            serde_json::json!({"items":[{"uri":"spotify:track:duplicate","positions":[7,3]}]})
+        );
+        assert!(
+            super::playlist_batch_error(super::ApiError::RateLimited, 100)
+                .to_string()
+                .contains("earlier batches")
+        );
+        assert_eq!(
+            super::playlist_detail_body(Some("Renamed"), None, None),
+            serde_json::json!({"name":"Renamed"})
+        );
+        assert_eq!(
+            super::playlist_detail_body(None, None, Some(false)),
+            serde_json::json!({"public":false})
+        );
+        let body = super::playlist_removal_body(
+            &[("spotify:track:duplicate".into(), 7)],
+            Some("snapshot"),
+        );
+        assert_eq!(
+            body,
+            serde_json::json!({"items":[{"uri":"spotify:track:duplicate","positions":[7]}],"snapshot_id":"snapshot"})
+        );
+    }
+
     use super::*;
 
     #[test]

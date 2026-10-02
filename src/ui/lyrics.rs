@@ -310,6 +310,72 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
 
 /// A reading view that uses the whole content area while retaining playback
 /// controls along the bottom of the window.
+#[derive(Clone, Default)]
+struct Backdrop {
+    current: Option<String>,
+    previous: Option<String>,
+    changed_at: f64,
+}
+
+impl Backdrop {
+    fn accept_ready(&mut self, ready: Option<String>, time: f64) {
+        if let Some(ready) = ready
+            && self.current.as_ref() != Some(&ready)
+        {
+            self.previous = self.current.replace(ready);
+            self.changed_at = time;
+        }
+    }
+}
+
+fn smooth_backdrop(app: &App, ui: &egui::Ui, rect: egui::Rect) {
+    if !app.settings.accent_from_art || app.settings.lyrics_tint_strength == 0 {
+        return;
+    }
+    let id = egui::Id::new("full-lyrics-backdrop");
+    let mut state = ui.data(|d| d.get_temp::<Backdrop>(id)).unwrap_or_default();
+    let now = app.now_playing();
+    let time = ui.input(|i| i.time);
+    let art = app.backend.art();
+    let ready = now.as_ref().and_then(|now| {
+        // Only candidates belonging to the current song can replace the backdrop.
+        [now.art_url.as_deref(), now.art_small.as_deref()]
+            .into_iter()
+            .flatten()
+            .find(|url| widgets::blurred_texture(ui, url, rect.size(), art).is_some())
+            .map(str::to_string)
+    });
+    state.accept_ready(ready, time);
+    let progress = ((time - state.changed_at) / 0.45).clamp(0.0, 1.0) as f32;
+    let opacity = (110.0 + f32::from(app.settings.lyrics_tint_strength.min(100)) * 1.3) as u8;
+    if let Some(previous) = &state.previous {
+        widgets::paint_blurred_art(
+            ui,
+            Some(previous),
+            rect,
+            0.0,
+            (f32::from(opacity) * (1.0 - progress)) as u8,
+            art,
+        );
+    }
+    if let Some(current) = &state.current {
+        widgets::paint_blurred_art(
+            ui,
+            Some(current),
+            rect,
+            0.0,
+            (f32::from(opacity) * progress) as u8,
+            art,
+        );
+    }
+    if progress < 1.0 {
+        ui.ctx().request_repaint();
+    } else {
+        state.previous = None;
+    }
+    ui.data_mut(|d| d.insert_temp(id, state));
+}
+
 pub fn full_page(app: &mut App, root: &mut egui::Ui) {
     let palette = app.palette;
     let tint = app.now_playing_tint().unwrap_or(palette.accent);
@@ -326,6 +392,9 @@ pub fn full_page(app: &mut App, root: &mut egui::Ui) {
         .show(root, |ui| {
             let rect = ui.max_rect();
             widgets::paint_vertical_gradient(ui, rect, top, bottom);
+            smooth_backdrop(app, ui, rect);
+            ui.painter()
+                .rect_filled(rect, 0.0, palette.window.gamma_multiply(0.35));
             let inner = rect.shrink2(egui::vec2(32.0, 16.0));
             let mut page = ui.new_child(
                 egui::UiBuilder::new()
@@ -694,6 +763,27 @@ fn contents(app: &mut App, ui: &mut egui::Ui, surface: Surface) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn backdrop_keeps_decoded_art_during_slow_failed_and_missing_loads() {
+        let mut state = super::Backdrop::default();
+        state.accept_ready(Some("old".into()), 1.0);
+        state.accept_ready(None, 2.0);
+        state.accept_ready(None, 20.0);
+        assert_eq!(state.current.as_deref(), Some("old"));
+        assert_eq!(state.changed_at, 1.0);
+        state.accept_ready(Some("small".into()), 21.0);
+        assert_eq!(state.previous.as_deref(), Some("old"));
+        state.accept_ready(Some("large".into()), 22.0);
+        assert_eq!(state.current.as_deref(), Some("large"));
+        assert_eq!(state.previous.as_deref(), Some("small"));
+        state.accept_ready(Some("large".into()), 23.0);
+        assert_eq!(
+            state.changed_at, 22.0,
+            "ready art must not restart the fade every frame"
+        );
+    }
+
     use super::word_progress_offset;
 
     #[test]

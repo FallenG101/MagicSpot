@@ -84,7 +84,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let mut changed = false;
 
     section(ui, &palette, "Account", |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
             let avatar = app
                 .user
@@ -319,7 +319,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             "Audio quality",
             "Higher bitrates use more data and cache space.",
             |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     for (kbps, label) in [
                         (320u16, "Very high · 320 kbps"),
@@ -421,7 +421,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         .settings
                         .platform_backend()
                         .unwrap_or_else(|| "rodio".into());
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 6.0;
                         for backend in ["rodio", "pulseaudio"] {
                             let label = if backend == "pulseaudio" {
@@ -449,7 +449,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             "Output buffer",
             "More buffering can prevent clicks on busy computers. Less buffering makes controls respond sooner.",
             |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let current = app.settings.audio_buffer_ms;
                     for ms in [50u32, 100, 200] {
@@ -472,7 +472,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             "Save downloaded audio for later playback.",
             |ui| {
                 // The control area lays out right-to-left: add the rightmost item first.
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     if widgets::switch(ui, &palette, "Audio cache", &mut app.settings.audio_cache)
                         .changed()
@@ -503,7 +503,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             },
         );
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             if playback_dirty {
                 if theme::pill_button(ui, &palette, "Apply and restart playback", true).clicked() {
                     app.actions.push(Action::RestartEngine);
@@ -522,7 +522,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 
     section(ui, &palette, "Appearance", |ui| {
         widgets::setting_row(ui, &palette, "Theme", "", |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 for choice in ThemeChoice::ALL {
                     if theme::soft_button(
@@ -551,7 +551,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             "Accent color",
             "Choose a simple built-in accent color.",
             |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     for choice in ColorTheme::ALL {
                         if color_swatch(ui, &palette, choice, app.settings.color_theme == choice)
@@ -577,7 +577,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 .unwrap_or_else(|| "Create, rename, import, and export your own palette.".into())
                 .as_str(),
             |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     if !app.settings.custom_themes.is_empty() {
                         let selected = app
                             .settings
@@ -652,7 +652,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         .changed();
                     ui.add_space(6.0);
                     theme::text(ui, "Font", theme::medium(12.5), palette.text);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         for font in LyricsFont::ALL {
                             if theme::soft_button(
                                 ui,
@@ -671,7 +671,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     });
                     ui.add_space(6.0);
                     theme::text(ui, "Alignment", theme::medium(12.5), palette.text);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         for alignment in LyricsAlignment::ALL {
                             if theme::soft_button(
                                 ui,
@@ -772,7 +772,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets.",
             ),
             |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let mut zoom = app.settings.zoom;
                     if theme::soft_button(ui, &palette, None, "+", false).clicked() {
@@ -825,7 +825,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         ui.add_space(10.0);
         eq_curve(ui, &palette, &crate::app::eq_settings(&app.settings));
         ui.add_space(10.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
             let on = app.settings.eq_on;
             let mut preamp = app.settings.eq_preamp_db;
@@ -891,7 +891,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     });
 
     section(ui, &palette, "About", |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let (logo, _) = ui.allocate_exact_size(Vec2::splat(40.0), egui::Sense::hover());
             theme::logo(ui, logo.center(), 40.0, palette.accent, palette.on_accent);
             ui.vertical(|ui| {
@@ -910,7 +910,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             });
         });
         ui.add_space(8.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             let check_label = if app.update_checking {
                 "Checking…"

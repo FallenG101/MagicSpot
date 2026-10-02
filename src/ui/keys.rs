@@ -153,6 +153,14 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
 }
 
 pub const SHORTCUTS: &[(&str, &str)] = &[
+    (
+        platform_shortcut("Ctrl+A", "Cmd+A"),
+        "Select all displayed tracks",
+    ),
+    (
+        platform_shortcut("Ctrl+C / X / V", "Cmd+C / X / V"),
+        "Copy / cut / paste playlist tracks",
+    ),
     ("Space", "Play or pause"),
     (
         platform_shortcut("Ctrl+←  /  Ctrl+→", "Cmd+←  /  Cmd+→"),

@@ -98,12 +98,28 @@ pub fn paint_blurred_art(
     let Some(url) = url else {
         return false;
     };
+    let Some(texture) = blurred_texture(ui, url, rect.size(), art) else {
+        return false;
+    };
+    egui::Image::new(texture)
+        .uv(cover_uv(texture.size, rect))
+        .tint(Color32::from_white_alpha(opacity))
+        .corner_radius(CornerRadius::same(radius.min(127.0) as u8))
+        .paint_at(ui, rect);
+    true
+}
+
+pub fn blurred_texture(
+    ui: &Ui,
+    url: &str,
+    size: Vec2,
+    art: &crate::images::ArtLoader,
+) -> Option<egui::load::SizedTexture> {
     let uri = crate::images::ArtLoader::blurred_uri(url);
     art.touch(&uri);
     let image = egui::Image::new(uri.as_str()).show_loading_spinner(false);
-    let Ok(egui::load::TexturePoll::Ready { texture }) = image.load_for_size(ui.ctx(), rect.size())
-    else {
-        return false;
+    let Ok(egui::load::TexturePoll::Ready { texture }) = image.load_for_size(ui.ctx(), size) else {
+        return None;
     };
     art.release_bytes(&uri);
     art.note_decoded(
@@ -111,12 +127,7 @@ pub fn paint_blurred_art(
         texture.size.x.round() as usize,
         texture.size.y.round() as usize,
     );
-    egui::Image::new(texture)
-        .uv(cover_uv(texture.size, rect))
-        .tint(Color32::from_white_alpha(opacity))
-        .corner_radius(CornerRadius::same(radius.min(127.0) as u8))
-        .paint_at(ui, rect);
-    true
+    Some(texture)
 }
 
 fn cover_uv(image_size: Vec2, rect: Rect) -> Rect {
@@ -411,34 +422,7 @@ pub fn picked_menu(ui: &mut Ui, app: &mut App, songs: &[PlayableItem]) {
             saved: !all_saved,
         });
     }
-    let playlists = app.editable_playlists();
-    ui.menu_button("Add to playlist", |ui| {
-        ui.set_min_width(220.0);
-        ui.set_max_width(300.0);
-        if menu_item(ui, &palette, Some(Icon::Plus), "New playlist") {
-            app.actions.push(Action::ShowDialog(Dialog::CreatePlaylist {
-                name: String::new(),
-                public: false,
-                add_uris: uris.clone(),
-            }));
-        }
-        if !playlists.is_empty() {
-            menu_separator(ui, &palette);
-        }
-        egui::ScrollArea::vertical()
-            .max_height(320.0)
-            .show(ui, |ui| {
-                for (id, name) in &playlists {
-                    if menu_item(ui, &palette, Some(Icon::ListMusic), name) {
-                        app.actions.push(Action::AddToPlaylist {
-                            playlist_id: id.clone(),
-                            playlist_name: name.clone(),
-                            items: songs.to_vec(),
-                        });
-                    }
-                }
-            });
-    });
+    ui.menu_button("Add to playlist", |ui| playlist_picker(ui, app, songs));
 }
 
 pub fn item_menu(
@@ -469,33 +453,8 @@ pub fn item_menu(
         if menu_item(ui, &palette, Some(icon), text) {
             app.actions.push(Action::ToggleSaved(uri.clone()));
         }
-        let playlists = app.editable_playlists();
         ui.menu_button("Add to playlist", |ui| {
-            ui.set_min_width(220.0);
-            ui.set_max_width(300.0);
-            if menu_item(ui, &palette, Some(Icon::Plus), "New playlist") {
-                app.actions.push(Action::ShowDialog(Dialog::CreatePlaylist {
-                    name: String::new(),
-                    public: false,
-                    add_uris: vec![uri.clone()],
-                }));
-            }
-            if !playlists.is_empty() {
-                menu_separator(ui, &palette);
-            }
-            egui::ScrollArea::vertical()
-                .max_height(320.0)
-                .show(ui, |ui| {
-                    for (id, name) in &playlists {
-                        if menu_item(ui, &palette, Some(Icon::ListMusic), name) {
-                            app.actions.push(Action::AddToPlaylist {
-                                playlist_id: id.clone(),
-                                playlist_name: name.clone(),
-                                items: vec![item.clone()],
-                            });
-                        }
-                    }
-                });
+            playlist_picker(ui, app, std::slice::from_ref(item))
         });
     } else if menu_item(ui, &palette, Some(Icon::Bookmark), "Save episode") {
         app.actions.push(Action::ToggleSaved(uri.clone()));
@@ -524,7 +483,9 @@ pub fn item_menu(
         if menu_item(ui, &palette, Some(Icon::Minus), "Remove from this playlist") {
             app.actions.push(Action::RemoveFromPlaylist {
                 playlist_id: playlist_id.clone(),
-                uris: vec![uri.clone()],
+                entries: index
+                    .map(|position| vec![(uri.clone(), position as u32)])
+                    .unwrap_or_default(),
             });
         }
     }
@@ -532,7 +493,7 @@ pub fn item_menu(
     match item {
         PlayableItem::Track(track) => {
             if menu_item(ui, &palette, Some(Icon::Radio), "Go to song radio") {
-                app.actions.push(Action::PlayTrackRadio(uri.clone()));
+                app.actions.push(Action::Open(Page::Radio(uri.clone())));
             }
             let artists: Vec<&ArtistRef> = track
                 .artists
@@ -610,6 +571,11 @@ pub fn context_menu_items(
             label: name.to_string(),
         });
     }
+    if matches!(kind, "album" | "artist" | "playlist")
+        && menu_item(ui, &palette, Some(Icon::Radio), "Go to radio")
+    {
+        app.actions.push(Action::Open(Page::Radio(uri.to_string())));
+    }
     let saved = app.is_saved(uri).unwrap_or(false);
     let (icon, text) = match (kind, saved) {
         ("artist", true) => (Icon::CircleX, "Unfollow"),
@@ -623,6 +589,15 @@ pub fn context_menu_items(
     if let Some(playlist) = owned_playlist {
         if menu_item(ui, &palette, Some(Icon::Pencil), "Edit details") {
             app.actions.push(Action::ShowDialog(Dialog::EditPlaylist {
+                original: (
+                    playlist.name.clone(),
+                    playlist
+                        .description
+                        .as_deref()
+                        .map(util::strip_html)
+                        .unwrap_or_default(),
+                    playlist.public.unwrap_or(false),
+                ),
                 id: playlist.id.clone(),
                 name: playlist.name.clone(),
                 description: playlist
@@ -653,6 +628,7 @@ pub fn context_menu_items(
 
 /// Describes one row of a track table.
 pub struct TrackRow<'a> {
+    pub playlist_entry: Option<(String, u32)>,
     pub index: usize,
     pub number: Option<usize>,
     pub item: &'a PlayableItem,
@@ -769,6 +745,17 @@ pub fn track_row(ui: &mut Ui, app: &mut App, row: TrackRow<'_>) -> Option<RowPic
 }
 
 fn track_row_contents(ui: &mut Ui, app: &mut App, row: TrackRow<'_>) -> Option<RowPick> {
+    let menu_context = row
+        .playlist_entry
+        .as_ref()
+        .map(|(id, _)| RowContext::Context {
+            uri: format!("spotify:playlist:{id}"),
+            editable_playlist: Some((id.clone(), None)),
+        });
+    let menu_index = row
+        .playlist_entry
+        .as_ref()
+        .map_or(row.index, |(_, slot)| *slot as usize);
     let palette = app.palette;
     let row_height = if row.thin {
         theme::THIN_ROW_HEIGHT
@@ -792,6 +779,7 @@ fn track_row_contents(ui: &mut Ui, app: &mut App, row: TrackRow<'_>) -> Option<R
             format!("Play {}, {}", row.item.name(), row.item.subtitle()),
         )
     });
+    ui.data_mut(|d| d.insert_temp(response.id.with("track-focus"), true));
     if response.gained_focus() {
         response.scroll_to_me(None);
     }
@@ -1287,7 +1275,15 @@ fn track_row_contents(ui: &mut Ui, app: &mut App, row: TrackRow<'_>) -> Option<R
         egui::Popup::menu(&more)
             .id(menu_id)
             .frame(menu_frame(&palette))
-            .show(|ui| item_menu(ui, app, row.item, Some(row.context), Some(row.index)));
+            .show(|ui| {
+                item_menu(
+                    ui,
+                    app,
+                    row.item,
+                    menu_context.as_ref().or(Some(row.context)),
+                    Some(menu_index),
+                )
+            });
     }
 
     // Row interactions.
@@ -1346,7 +1342,13 @@ fn track_row_contents(ui: &mut Ui, app: &mut App, row: TrackRow<'_>) -> Option<R
             if row.picked && row.picked_songs.len() > 1 {
                 picked_menu(ui, app, row.picked_songs);
             } else {
-                item_menu(ui, app, row.item, Some(row.context), Some(row.index));
+                item_menu(
+                    ui,
+                    app,
+                    row.item,
+                    menu_context.as_ref().or(Some(row.context)),
+                    Some(menu_index),
+                );
             }
         });
     pick
@@ -1723,6 +1725,7 @@ pub fn card(
             format!("{title}, {subtitle}"),
         )
     });
+    ui.data_mut(|d| d.insert_temp(response.id.with("track-focus"), true));
     if response.gained_focus() {
         response.scroll_to_me(None);
     }
@@ -2202,6 +2205,101 @@ pub fn setting_row(
         ui.with_layout(Layout::right_to_left(Align::Center), control);
     });
     ui.add_space(10.0);
+}
+
+pub(crate) fn playlist_picker(ui: &mut Ui, app: &mut App, songs: &[PlayableItem]) {
+    let palette = app.palette;
+    ui.set_min_width(220.0);
+    ui.set_max_width(300.0);
+    let id = ui.id().with("playlist-picker");
+    let mut query = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_default();
+    let before = query.clone();
+    let mut selected = ui
+        .data(|d| d.get_temp::<usize>(id.with("selected")))
+        .unwrap_or(0);
+    let mut down = false;
+    let mut up = false;
+    let mut enter = false;
+    // Capture navigation before TextEdit consumes it, then apply it to the updated query.
+    if ui.memory(|m| m.has_focus(id.with("search"))) {
+        ui.input_mut(|i| {
+            down = i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown);
+            up = i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
+            enter = i.consume_key(egui::Modifiers::NONE, egui::Key::Enter);
+        });
+    }
+    let field = search_field(
+        ui,
+        &palette,
+        id.with("search"),
+        &mut query,
+        "Find playlist",
+        220.0,
+    );
+    field.request_focus();
+    ui.memory_mut(|memory| {
+        memory.set_focus_lock_filter(
+            field.id,
+            egui::EventFilter {
+                horizontal_arrows: true,
+                vertical_arrows: true,
+                ..Default::default()
+            },
+        )
+    });
+    if query != before {
+        selected = 0;
+    }
+    let results: Vec<_> = app
+        .editable_playlists()
+        .into_iter()
+        .filter(|(_, name)| name.to_lowercase().contains(&query.trim().to_lowercase()))
+        .collect();
+    selected = selected.min(results.len().saturating_sub(1));
+    if down {
+        selected = (selected + 1).min(results.len().saturating_sub(1));
+    }
+    if up {
+        selected = selected.saturating_sub(1);
+    }
+    let mut submit = (enter && !results.is_empty()).then_some(selected);
+
+    if menu_item(ui, &palette, Some(Icon::Plus), "New playlist") {
+        app.actions.push(Action::ShowDialog(Dialog::CreatePlaylist {
+            name: String::new(),
+            public: false,
+            add_uris: songs.iter().map(|item| item.uri().to_string()).collect(),
+        }));
+    }
+    egui::ScrollArea::vertical()
+        .max_height(320.0)
+        .show(ui, |ui| {
+            if results.is_empty() {
+                ui.label("No matching playlists");
+            }
+            for (index, (_, name)) in results.iter().enumerate() {
+                let response = ui.selectable_label(index == selected, name);
+                if index == selected && field.has_focus() {
+                    response.scroll_to_me(None);
+                }
+                if response.clicked() {
+                    submit = Some(index);
+                }
+            }
+        });
+    if let Some(index) = submit {
+        let (playlist_id, playlist_name) = &results[index];
+        app.actions.push(Action::AddToPlaylist {
+            playlist_id: playlist_id.clone(),
+            playlist_name: playlist_name.clone(),
+            items: songs.to_vec(),
+        });
+        ui.close();
+    }
+    ui.data_mut(|d| {
+        d.insert_temp(id, query);
+        d.insert_temp(id.with("selected"), selected);
+    });
 }
 
 #[cfg(test)]

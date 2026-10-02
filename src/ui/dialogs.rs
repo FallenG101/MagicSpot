@@ -315,6 +315,7 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let busy = app.playlist_busy;
     let Some(Dialog::EditPlaylist {
+        original,
         id,
         name,
         description,
@@ -351,9 +352,27 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     });
     ui.add_space(20.0);
     let id = id.clone();
-    let name_value = name.trim().to_string();
-    let description_value = description.trim().to_string();
+    let name_value = if *name == original.0 {
+        name.clone()
+    } else {
+        name.trim().to_string()
+    };
+    let description_value = if *description == original.1 {
+        description.clone()
+    } else {
+        description.trim().to_string()
+    };
     let public_value = *public;
+    let (changed_name, changed_description, changed_public, cannot_clear) =
+        crate::model::playlist_detail_changes(
+            original,
+            &name_value,
+            &description_value,
+            public_value,
+        );
+    if cannot_clear {
+        ui.label("Spotify's API cannot clear a description. Clear it in Spotify; other changed fields can still be saved.");
+    }
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
         if busy {
             theme::spinner(ui, 18.0, palette.accent);
@@ -361,9 +380,9 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
             if theme::pill_button(ui, &palette, "Save", true).clicked() && !name_value.is_empty() {
                 app.actions.push(Action::UpdatePlaylist {
                     id: id.clone(),
-                    name: name_value.clone(),
-                    description: description_value.clone(),
-                    public: public_value,
+                    name: changed_name.clone(),
+                    description: changed_description.clone(),
+                    public: changed_public,
                 });
             }
             if theme::pill_button(ui, &palette, "Cancel", false).clicked() {

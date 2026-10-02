@@ -336,6 +336,7 @@ fn songs(app: &mut App, ui: &mut egui::Ui, results: &SearchResults, limit: usize
             ui,
             app,
             TrackRow {
+                playlist_entry: None,
                 index,
                 number: None,
                 item,

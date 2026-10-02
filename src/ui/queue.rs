@@ -212,6 +212,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
                     ui,
                     app,
                     TrackRow {
+                        playlist_entry: None,
                         index: 0,
                         number: None,
                         item: current,
@@ -365,6 +366,7 @@ fn recents_contents(app: &mut App, ui: &mut egui::Ui) {
             ui,
             app,
             TrackRow {
+                playlist_entry: None,
                 index,
                 number: None,
                 item: &item,
@@ -440,6 +442,7 @@ fn queue_row(
                     ui,
                     app,
                     TrackRow {
+                        playlist_entry: None,
                         index,
                         number: Some(index + 1),
                         item: &item,

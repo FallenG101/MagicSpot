@@ -120,6 +120,7 @@ pub enum Page {
     Album(String),
     Artist(String),
     Show(String),
+    Radio(String),
     Queue,
     Settings,
     Diagnostics,
@@ -141,6 +142,7 @@ impl Page {
             Page::Album(_) => "Album",
             Page::Artist(_) => "Artist",
             Page::Show(_) => "Podcast",
+            Page::Radio(_) => "Radio",
             Page::Queue => "Queue",
             Page::Settings => "Settings",
             Page::Diagnostics => "Connection diagnostics",
@@ -162,6 +164,7 @@ impl Page {
             Page::Album(id) => format!("album:{id}"),
             Page::Artist(id) => format!("artist:{id}"),
             Page::Show(id) => format!("show:{id}"),
+            Page::Radio(uri) => format!("radio:{uri}"),
             Page::Queue => "queue".into(),
             Page::Settings => "settings".into(),
             Page::Diagnostics => "diagnostics".into(),
@@ -186,6 +189,7 @@ impl Page {
             other => {
                 let (kind, id) = other.split_once(':')?;
                 match kind {
+                    "radio" => Page::Radio(id.into()),
                     "playlist" => Page::Playlist(id.into()),
                     "album" => Page::Album(id.into()),
                     "artist" => Page::Artist(id.into()),
@@ -720,6 +724,7 @@ pub enum Dialog {
         add_uris: Vec<String>,
     },
     EditPlaylist {
+        original: (String, String, bool),
         id: String,
         name: String,
         description: String,
@@ -780,6 +785,7 @@ pub enum Action {
     },
     /// Spotify's station seeded by this song.
     PlayTrackRadio(String),
+    RefreshRadio(String),
     ShufflePlay(String),
     TogglePlay,
     Next,
@@ -814,6 +820,10 @@ pub enum Action {
         playlist_name: String,
         items: Vec<PlayableItem>,
     },
+    PasteTracks {
+        playlist_id: String,
+        text: String,
+    },
     ConfirmAddToPlaylist {
         playlist_id: String,
         playlist_name: String,
@@ -821,7 +831,7 @@ pub enum Action {
     },
     RemoveFromPlaylist {
         playlist_id: String,
-        uris: Vec<String>,
+        entries: Vec<(String, u32)>,
     },
     MoveInPlaylist {
         playlist_id: String,
@@ -837,9 +847,9 @@ pub enum Action {
     },
     UpdatePlaylist {
         id: String,
-        name: String,
-        description: String,
-        public: bool,
+        name: Option<String>,
+        description: Option<String>,
+        public: Option<bool>,
     },
     DeletePlaylist(String),
     Transfer(String),
@@ -924,4 +934,86 @@ pub enum Action {
     /// that is on, out of the app otherwise.
     CloseWindow,
     Quit,
+}
+
+/// Spotify ignores an empty description; omit that field while saving other edits.
+pub fn playlist_detail_changes(
+    original: &(String, String, bool),
+    name: &str,
+    description: &str,
+    public: bool,
+) -> (Option<String>, Option<String>, Option<bool>, bool) {
+    let clearing = description.is_empty() && !original.1.is_empty();
+    (
+        (name != original.0).then(|| name.to_string()),
+        (description != original.1 && !clearing).then(|| description.to_string()),
+        (public != original.2).then_some(public),
+        clearing,
+    )
+}
+
+pub fn clipboard_track_uris(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .filter_map(|part| {
+            let id = part
+                .strip_prefix("spotify:track:")
+                .or_else(|| part.strip_prefix("https://open.spotify.com/track/"))?;
+            let id = id.split(['?', '#']).next()?;
+            (!id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric()))
+                .then(|| format!("spotify:track:{id}"))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod feature_scope_tests {
+    use super::*;
+    #[test]
+    fn detail_changes_and_description_clear_are_independent() {
+        let original = ("Name".into(), "Description".into(), false);
+        assert_eq!(
+            playlist_detail_changes(&original, "Name", "Description", false),
+            (None, None, None, false)
+        );
+        assert_eq!(
+            playlist_detail_changes(&original, "Renamed", "", true),
+            (Some("Renamed".into()), None, Some(true), true)
+        );
+        assert_eq!(
+            playlist_detail_changes(&original, "Name", "New", false),
+            (None, Some("New".into()), None, false)
+        );
+    }
+    #[test]
+    fn clipboard_links_preserve_occurrences_and_ignore_non_tracks() {
+        assert_eq!(
+            clipboard_track_uris(
+                "spotify:track:abc https://open.spotify.com/track/abc?si=123 spotify:album:no arbitrary spotify:track:bad!"
+            ),
+            vec!["spotify:track:abc", "spotify:track:abc"]
+        );
+        assert_eq!(
+            Page::decode(&Page::Radio("spotify:artist:abc".into()).encode()),
+            Some(Page::Radio("spotify:artist:abc".into()))
+        );
+    }
+    #[test]
+    fn library_preferences_default_for_old_settings_and_round_trip() {
+        let mut settings: crate::settings::Settings = serde_json::from_str("{}").unwrap();
+        assert!(
+            !settings.sidebar_grid
+                && !settings.sidebar_reorder_explained
+                && !settings.sidebar_spotify_order
+        );
+        settings.sidebar_grid = true;
+        settings.sidebar_reorder_explained = true;
+        settings.sidebar_spotify_order = true;
+        let restored: crate::settings::Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert!(
+            restored.sidebar_grid
+                && restored.sidebar_reorder_explained
+                && restored.sidebar_spotify_order
+        );
+    }
 }

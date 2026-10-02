@@ -67,6 +67,8 @@ Download the normal setup program or portable ZIP from
 [GitHub Releases](https://github.com/FallenG101/MagicSpot/releases). The setup
 installs for the current user and does not require administrator rights. Builds
 are currently unsigned, so Windows may ask you to confirm the publisher.
+Each GitHub release page includes a user-facing list of changes in that version;
+the [changelog](CHANGELOG.md) keeps the fuller project history.
 
 The portable ZIP contains `magicspot.exe`, the README, and the license without
 installing or registering the application. A duplicate loose executable is not
@@ -199,3 +201,5 @@ See [LICENSE](LICENSE) for the MIT License and retained copyright notice.
 
 Spotify is a trademark of Spotify AB. MagicSpot is an independent project and
 is not affiliated with Spotify.
+
+See [implemented Library, playlist, Radio, and lyrics features](docs/UPSTREAM_FEATURE_IMPLEMENTATION.md) for usage and verification.

@@ -118,6 +118,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                             ui,
                             app,
                             TrackRow {
+                                playlist_entry: None,
                                 index,
                                 number: Some(index + 1),
                                 item,

@@ -232,7 +232,7 @@ version or create a release unless the user requests one.
 When publishing a requested release:
 
 1. Update the package version in both `Cargo.toml` and MagicSpot's package entry
-   in `Cargo.lock`.
+   in `Cargo.lock`, and add the complete technical history to `CHANGELOG.md`.
 2. Run formatting, the complete lightweight test suite, strict Clippy, a local
    release build, and relevant demo screenshots.
 3. Commit and push `main`.
@@ -245,7 +245,17 @@ When publishing a requested release:
 7. Manually run **macOS release** with the same tag to attach the universal DMG
    and checksum. Run Windows first because the macOS job expects a GitHub
    release to exist.
-8. Verify that the release is neither a draft nor prerelease and that every
+8. Update the GitHub release description with a concise, user-facing list of
+   changes in that version. Use the matching `CHANGELOG.md` section as the
+   source, but do not leave the release page with only GitHub's generated commit
+   notes or a link to the changelog. Group meaningful changes under headings
+   such as **Added**, **Improved**, and **Fixed**; omit headings with no entries.
+   Describe behavior users will notice, and include upgrade or platform notes
+   when they matter. Skip internal refactors unless they affect users.
+   For example, prepare the notes in a file and apply them with
+   `gh release edit vX.Y.Z --notes-file path/to/release-notes.md`.
+9. Verify that the release is neither a draft nor prerelease, that its
+   description contains the user-facing change list, and that every
    expected asset is present before reporting completion: Windows installer,
    portable ZIP, `checksums.txt`, universal DMG, and its `.sha256` file, plus
    GitHub's generated source archives.

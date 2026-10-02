@@ -223,6 +223,9 @@ pub struct Settings {
     /// The sidebar's own playlist order, set by dragging rows. Empty means
     /// the automatic order: the pinned block first, then recently played.
     pub sidebar_order: Vec<String>,
+    pub sidebar_reorder_explained: bool,
+    pub sidebar_grid: bool,
+    pub sidebar_spotify_order: bool,
     /// Interface zoom, egui's zoom factor; Ctrl+plus/minus changes it.
     pub zoom: f32,
     /// The equalizer shapes local playback.
@@ -279,6 +282,9 @@ impl Default for Settings {
             check_for_updates: false,
             pinned_contexts: Vec::new(),
             sidebar_order: Vec::new(),
+            sidebar_reorder_explained: false,
+            sidebar_grid: false,
+            sidebar_spotify_order: false,
             zoom: 1.0,
             eq_on: false,
             eq_preamp_db: 0.0,

@@ -377,6 +377,7 @@ fn track_list(
             ui,
             app,
             TrackRow {
+                playlist_entry: None,
                 index,
                 number: None,
                 item: &item,

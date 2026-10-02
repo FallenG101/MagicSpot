@@ -279,6 +279,8 @@ pub struct App {
     pub artist_pages: HashMap<String, ArtistPage>,
     pub show_pages: HashMap<String, ShowPage>,
     pub track_cache: HashMap<String, Track>,
+    pub radio: Option<(String, u64, Loadable<Vec<Track>>)>,
+    paste_generation: Option<u64>,
     track_requests: HashSet<String>,
     /// Built table rows, keyed by page. Capped; dropped on reset and eviction.
     pub table_rows: HashMap<Page, TableRowsCache>,
@@ -590,6 +592,8 @@ impl App {
             artist_pages: HashMap::new(),
             show_pages: HashMap::new(),
             track_cache: HashMap::new(),
+            radio: None,
+            paste_generation: None,
             track_requests: HashSet::new(),
             table_rows: HashMap::new(),
             page_used: HashMap::new(),
@@ -1462,6 +1466,8 @@ impl App {
     }
 
     fn reset_data(&mut self) {
+        self.radio = None;
+        self.paste_generation = None;
         self.library = Library {
             playlists_generation: self.library.playlists_generation,
             ..Library::default()
@@ -2507,6 +2513,11 @@ impl App {
                 }
                 self.request_contains(vec![format!("spotify:show:{id}")]);
             }
+            Page::Radio(uri) => {
+                if self.radio.as_ref().is_none_or(|(seed, _, _)| *seed != uri) {
+                    self.refresh_radio(uri);
+                }
+            }
             Page::Queue => self.refresh_queue(true),
             Page::Settings => {}
             Page::ThemeEditor => {}
@@ -2737,7 +2748,9 @@ impl App {
             };
             self.load_generation += 1;
             page.generation = self.load_generation;
+            let total = page.items.total;
             page.items.reset_at(offset);
+            page.items.total = total;
             page.items.loading = true;
             page.tail_checked = false;
             page.cache_restored_through = None;
@@ -2757,6 +2770,13 @@ impl App {
     }
 
     fn jump_to_playlist_position(&mut self, id: &str, position: u32) {
+        if self
+            .playlist_pages
+            .get(id)
+            .is_some_and(|page| page.pending_writes > 0)
+        {
+            return;
+        }
         let Some(total) = self
             .playlist_pages
             .get(id)
@@ -2775,6 +2795,7 @@ impl App {
 
     fn reload(&mut self, page: Page) {
         match &page {
+            Page::Radio(uri) => self.refresh_radio(uri.clone()),
             Page::Home => self.load_home(true),
             Page::TopSongs => self.load_top_songs(true),
             Page::LikedSongs => self.library.liked.reset(),
@@ -3520,6 +3541,27 @@ impl App {
                 }
                 self.home.top_artists.refresh(result);
             }
+            ApiResponse::Radio {
+                uri,
+                generation,
+                result,
+            } => {
+                if let Some((seed, current, tracks)) = &mut self.radio
+                    && *seed == uri
+                    && *current == generation
+                {
+                    *tracks = match result {
+                        Ok(result) => Loadable::Loaded(result),
+                        Err(error) => {
+                            Loadable::Failed(if matches!(error.status(), Some(403 | 404)) {
+                                "Radio recommendations are unavailable for this Spotify app. Song radio can still use the local player; Open in Spotify offers native Radio.".into()
+                            } else {
+                                error.to_string()
+                            })
+                        }
+                    };
+                }
+            }
             ApiResponse::Recommendations { generation, result } => {
                 if generation != self.home.generation {
                     return;
@@ -3832,6 +3874,28 @@ impl App {
                     }
                 }
             }
+            ApiResponse::PlaylistTracksResolved {
+                generation,
+                playlist_id,
+                playlist_name,
+                result,
+            } => {
+                if self.paste_generation != Some(generation) {
+                    return;
+                }
+                self.paste_generation = None;
+                self.playlist_busy = false;
+                match result {
+                    Ok(tracks) => self.actions.push(Action::AddToPlaylist {
+                        playlist_id,
+                        playlist_name,
+                        items: tracks.into_iter().map(PlayableItem::Track).collect(),
+                    }),
+                    Err(error) => self.toast_error(format!(
+                        "Couldn't read pasted songs: {error}. No songs were added."
+                    )),
+                }
+            }
             ApiResponse::PlaylistDuplicatesChecked {
                 playlist_id,
                 playlist_name,
@@ -3854,6 +3918,7 @@ impl App {
                     // A failed read must not take away an edit the account is
                     // still allowed to make. The write reports its own error.
                     log::debug!("could not check playlist for duplicates: {error}");
+                    self.toast("Couldn't check for duplicates. Spotify will report whether the addition succeeds.");
                     self.add_to_playlist_now(playlist_id, playlist_name, items);
                 }
             },
@@ -4422,6 +4487,13 @@ impl App {
         if rows {
             self.note_page_timing(&page, PAGE_ROWS_FRAME, "rows_frame");
         }
+    }
+
+    fn refresh_radio(&mut self, uri: String) {
+        self.load_generation = self.load_generation.wrapping_add(1);
+        let generation = self.load_generation;
+        self.radio = Some((uri.clone(), generation, Loadable::Loading));
+        self.backend.api(ApiRequest::Radio { uri, generation });
     }
 
     pub fn open(&mut self, page: Page) {
@@ -5660,6 +5732,7 @@ impl App {
                 request.offset_position = offset_index;
                 self.play_request(request, false);
             }
+            Action::RefreshRadio(uri) => self.refresh_radio(uri),
             Action::PlayTrackRadio(uri) => {
                 // Load the station URI as a 50-track local context. Autoplay
                 // from a bare track fails inside librespot and clears the queue.
@@ -5871,6 +5944,66 @@ impl App {
                     });
                 }
             },
+            Action::PasteTracks { playlist_id, text } => {
+                let Some(playlist) = self
+                    .playlist_pages
+                    .get(&playlist_id)
+                    .and_then(|p| p.playlist.get())
+                    .cloned()
+                else {
+                    return;
+                };
+                if !self.can_edit_playlist(&playlist) || self.playlist_busy {
+                    return;
+                }
+                let uris = crate::model::clipboard_track_uris(&text);
+                if uris.is_empty() {
+                    self.toast_error("Clipboard contains no Spotify track links or URIs.");
+                    return;
+                }
+                let mut seen = std::collections::HashSet::new();
+                if uris.iter().any(|uri| !seen.insert(uri)) {
+                    self.toast(
+                        "Clipboard includes repeated tracks; each occurrence will be pasted.",
+                    );
+                }
+                if uris.len() < text.split_whitespace().count() {
+                    self.toast("Ignored clipboard entries that are not Spotify track links.");
+                }
+                if uris.iter().any(|uri| !self.track_cache.contains_key(uri)) {
+                    self.playlist_busy = true;
+                    self.load_generation = self.load_generation.wrapping_add(1);
+                    self.paste_generation = Some(self.load_generation);
+                    self.backend.api(ApiRequest::ResolvePlaylistTracks {
+                        generation: self.load_generation,
+                        playlist_id,
+                        playlist_name: playlist.name,
+                        uris,
+                    });
+                    return;
+                }
+                let items = uris
+                    .into_iter()
+                    .map(|uri| {
+                        PlayableItem::Track(self.track_cache.get(&uri).cloned().unwrap_or_else(
+                            || Track {
+                                id: util::uri_id(&uri).map(str::to_string),
+                                name: uri.clone(),
+                                uri,
+                                ..Default::default()
+                            },
+                        ))
+                    })
+                    .collect();
+                self.apply(
+                    Action::AddToPlaylist {
+                        playlist_id,
+                        playlist_name: playlist.name,
+                        items,
+                    },
+                    ctx,
+                );
+            }
             Action::ConfirmAddToPlaylist {
                 playlist_id,
                 playlist_name,
@@ -5878,25 +6011,94 @@ impl App {
             } => {
                 self.add_to_playlist_now(playlist_id, playlist_name, items);
             }
-            Action::RemoveFromPlaylist { playlist_id, uris } => {
-                let snapshot_id = self
-                    .playlist_pages
-                    .get(&playlist_id)
-                    .and_then(|page| page.playlist.get())
-                    .and_then(|playlist| playlist.snapshot_id.clone());
+            Action::RemoveFromPlaylist {
+                playlist_id,
+                entries,
+            } => {
+                if self.playlist_busy || entries.is_empty() {
+                    return;
+                }
+                let Some(page) = self.playlist_pages.get(&playlist_id) else {
+                    return;
+                };
+                let Some(playlist) = page.playlist.get() else {
+                    return;
+                };
+                if !self.can_edit_playlist(playlist) {
+                    return;
+                }
+                // Reject stale row identities rather than removing another occurrence.
+                if entries.iter().any(|(uri, position)| {
+                    position
+                        .checked_sub(page.items.base_offset)
+                        .and_then(|slot| page.items.items.get(slot as usize))
+                        .and_then(|item| item.playable())
+                        .is_none_or(|item| item.uri() != uri)
+                }) {
+                    self.toast_error("Playlist changed. Select the songs again.");
+                    return;
+                }
+                let Some(snapshot_id) = playlist.snapshot_id.clone() else {
+                    self.toast_error("Playlist details are still loading. Try removing the songs again when loading finishes.");
+                    return;
+                };
+                // Relinked playback tracks still represent the original Spotify playlist URI.
+                let entries: Vec<_> = entries
+                    .into_iter()
+                    .map(|(uri, position)| {
+                        let original = page
+                            .items
+                            .items
+                            .get((position - page.items.base_offset) as usize)
+                            .and_then(|item| item.playable())
+                            .and_then(|item| match item {
+                                PlayableItem::Track(track) => {
+                                    track.linked_from.as_ref().map(|linked| linked.uri.clone())
+                                }
+                                _ => None,
+                            })
+                            .filter(|uri| !uri.is_empty())
+                            .unwrap_or(uri);
+                        (original, position)
+                    })
+                    .collect();
+                let snapshot_id = Some(snapshot_id);
                 self.prepare_playlist_mutation(&playlist_id);
                 if let Some(page) = self.playlist_pages.get_mut(&playlist_id) {
-                    page.local_additions
-                        .retain(|uri| !uris.iter().any(|removed| removed == uri));
-                    page.items.retain(|item| {
-                        item.playable()
-                            .is_none_or(|playable| !uris.iter().any(|uri| uri == playable.uri()))
+                    let slots: std::collections::HashSet<u32> =
+                        entries.iter().map(|(_, slot)| *slot).collect();
+                    let mut position = page.items.base_offset;
+                    page.items.retain(|_| {
+                        let keep = !slots.contains(&position);
+                        position += 1;
+                        keep
+                    });
+                    let removed = slots.len() as u32;
+                    if let Some(playlist) = page.playlist.get_mut() {
+                        if let Some(items) = &mut playlist.items_count {
+                            items.total = items.total.saturating_sub(removed);
+                        }
+                        if let Some(tracks) = &mut playlist.tracks {
+                            tracks.total = tracks.total.saturating_sub(removed);
+                        }
+                    }
+                    page.items.total = page.items.total.map(|total| total.saturating_sub(removed));
+                    page.items.next_offset = page
+                        .items
+                        .next_offset
+                        .map(|offset| offset.saturating_sub(removed));
+                    page.local_additions.retain(|uri| {
+                        page.items
+                            .items
+                            .iter()
+                            .any(|item| item.playable().is_some_and(|item| item.uri() == uri))
                     });
                 }
+                self.clear_picked_rows();
                 self.playlist_busy = true;
                 self.backend.api(ApiRequest::RemoveFromPlaylist {
                     playlist_id,
-                    uris,
+                    entries,
                     snapshot_id,
                 });
             }
@@ -5952,12 +6154,15 @@ impl App {
                 public,
             } => {
                 self.dialog = None;
+                if name.is_none() && description.is_none() && public.is_none() {
+                    return;
+                }
                 self.playlist_busy = true;
                 self.backend.api(ApiRequest::UpdatePlaylist {
                     id,
-                    name: Some(name),
-                    description: Some(description),
-                    public: Some(public),
+                    name,
+                    description,
+                    public,
                 });
             }
             Action::DeletePlaylist(id) => {
@@ -6959,6 +7164,221 @@ fn evict_lru_map<V>(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn pasted_metadata_failure_and_stale_account_response_never_add_tracks() {
+        let mut app = test_app("paste-resolve-failure");
+        app.backend.set_offline(true);
+        app.paste_generation = Some(12);
+        app.playlist_busy = true;
+        app.handle_api(ApiResponse::PlaylistTracksResolved {
+            generation: 11,
+            playlist_id: "p".into(),
+            playlist_name: "P".into(),
+            result: Ok(vec![Default::default()]),
+        });
+        assert!(app.playlist_busy);
+        assert!(app.actions.is_empty());
+        app.handle_api(ApiResponse::PlaylistTracksResolved {
+            generation: 12,
+            playlist_id: "p".into(),
+            playlist_name: "P".into(),
+            result: Err(crate::api::ApiError::Network("offline".into())),
+        });
+        assert!(!app.playlist_busy);
+        assert!(app.actions.is_empty());
+        app.handle_api(ApiResponse::PlaylistTracksResolved {
+            generation: 12,
+            playlist_id: "p".into(),
+            playlist_name: "P".into(),
+            result: Ok(vec![Default::default()]),
+        });
+        assert!(app.actions.is_empty());
+    }
+    #[test]
+    fn radio_playlist_creation_failure_keeps_the_mix_retryable() {
+        let mut app = test_app("radio-save-failure");
+        app.backend.set_offline(true);
+        let ctx = egui::Context::default();
+        app.apply(
+            Action::CreatePlaylist {
+                name: "Song Radio".into(),
+                public: false,
+                add_uris: vec!["spotify:track:a".into(), "spotify:track:b".into()],
+            },
+            &ctx,
+        );
+        app.handle_api(ApiResponse::PlaylistCreated(Err(
+            crate::api::ApiError::Network("offline".into()),
+        )));
+        assert!(!app.playlist_busy);
+        assert!(
+            matches!(&app.dialog, Some(Dialog::CreatePlaylist { add_uris, .. }) if add_uris.len() == 2)
+        );
+    }
+    #[test]
+    fn radio_supported_sources_accept_mock_results_and_unsupported_seed_reports_error() {
+        let mut app = test_app("radio-seeds");
+        app.backend.set_offline(true);
+        for kind in ["track", "artist", "album", "playlist"] {
+            let uri = format!("spotify:{kind}:seed");
+            app.refresh_radio(uri.clone());
+            let generation = app.radio.as_ref().unwrap().1;
+            app.handle_api(ApiResponse::Radio {
+                uri,
+                generation,
+                result: Ok(vec![Track {
+                    uri: "spotify:track:result".into(),
+                    ..Default::default()
+                }]),
+            });
+            assert_eq!(
+                app.radio.as_ref().unwrap().2.get().unwrap()[0].uri,
+                "spotify:track:result"
+            );
+        }
+        app.refresh_radio("spotify:episode:seed".into());
+        let generation = app.radio.as_ref().unwrap().1;
+        app.handle_api(ApiResponse::Radio {
+            uri: "spotify:episode:seed".into(),
+            generation,
+            result: Err(crate::api::ApiError::Decode(
+                "Unsupported radio seed".into(),
+            )),
+        });
+        assert!(
+            matches!(&app.radio.as_ref().unwrap().2, Loadable::Failed(message) if message.contains("Unsupported"))
+        );
+    }
+
+    #[test]
+    fn playlist_details_dispatch_only_changed_fields() {
+        let mut app = test_app("dirty-playlist");
+        app.backend.set_offline(true);
+        app.apply(
+            Action::UpdatePlaylist {
+                id: "p".into(),
+                name: Some("New".into()),
+                description: None,
+                public: None,
+            },
+            &egui::Context::default(),
+        );
+        assert!(app.backend.take_api_requests().iter().any(|request| matches!(request, ApiRequest::UpdatePlaylist { name: Some(name), description: None, public: None, .. } if name == "New")));
+    }
+
+    #[test]
+    fn positional_removal_keeps_other_duplicate_occurrences_and_rejects_stale_rows() {
+        let mut app = test_app("position-removal");
+        app.backend.set_offline(true);
+        let mut page = crate::model::PlaylistPage {
+            playlist: Loadable::Loaded(crate::api::models::Playlist {
+                id: "p".into(),
+                collaborative: true,
+                snapshot_id: Some("s".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        page.items.base_offset = 50;
+        page.items.items = vec![
+            cached_playlist_row("spotify:track:dup"),
+            Default::default(),
+            cached_playlist_row("spotify:track:dup"),
+            cached_playlist_row("spotify:track:other"),
+        ];
+        page.items.total = Some(54);
+        page.items.next_offset = None;
+        app.playlist_pages.insert("p".into(), page);
+        let ctx = egui::Context::default();
+        app.apply(
+            Action::RemoveFromPlaylist {
+                playlist_id: "p".into(),
+                entries: vec![("spotify:track:wrong".into(), 52)],
+            },
+            &ctx,
+        );
+        assert!(!app.playlist_busy);
+        assert_eq!(app.playlist_pages["p"].items.items.len(), 4);
+        app.apply(
+            Action::RemoveFromPlaylist {
+                playlist_id: "p".into(),
+                entries: vec![("spotify:track:dup".into(), 52)],
+            },
+            &ctx,
+        );
+        let remaining: Vec<_> = app.playlist_pages["p"]
+            .items
+            .items
+            .iter()
+            .filter_map(|item| item.playable())
+            .map(|item| item.uri())
+            .collect();
+        assert_eq!(remaining, vec!["spotify:track:dup", "spotify:track:other"]);
+        assert_eq!(app.playlist_pages["p"].items.total, Some(53));
+        app.handle_api(ApiResponse::PlaylistItemsChanged {
+            id: "p".into(),
+            message: String::new(),
+            result: Err(crate::api::ApiError::Network("offline".into())),
+        });
+        assert!(!app.playlist_busy);
+        assert!(
+            app.playlist_pages["p"].items.loading,
+            "a failed cut reloads Spotify's rows"
+        );
+    }
+    #[test]
+    fn radio_rejects_old_refreshes_and_retains_actionable_errors() {
+        let mut app = test_app("radio-refresh");
+        app.backend.set_offline(true);
+        app.refresh_radio("spotify:track:a".into());
+        let first = app.radio.as_ref().unwrap().1;
+        app.refresh_radio("spotify:artist:b".into());
+        let current = app.radio.as_ref().unwrap().1;
+        app.handle_api(ApiResponse::Radio {
+            uri: "spotify:track:a".into(),
+            generation: first,
+            result: Ok(vec![Default::default()]),
+        });
+        assert!(matches!(app.radio.as_ref().unwrap().2, Loadable::Loading));
+        for error in [
+            crate::api::ApiError::Network("offline".into()),
+            crate::api::ApiError::RateLimited,
+            crate::api::ApiError::Status {
+                status: 403,
+                message: "unsupported".into(),
+            },
+        ] {
+            app.handle_api(ApiResponse::Radio {
+                uri: "spotify:artist:b".into(),
+                generation: current,
+                result: Err(error),
+            });
+            assert!(
+                matches!(&app.radio.as_ref().unwrap().2, Loadable::Failed(message) if !message.is_empty())
+            );
+        }
+        app.handle_api(ApiResponse::Radio {
+            uri: "spotify:artist:b".into(),
+            generation: current,
+            result: Ok(vec![]),
+        });
+        assert_eq!(app.radio.as_ref().unwrap().2.get().unwrap().len(), 0);
+        app.apply(
+            Action::UpdatePlaylist {
+                id: "p".into(),
+                name: None,
+                description: None,
+                public: None,
+            },
+            &egui::Context::default(),
+        );
+        assert!(
+            !app.playlist_busy,
+            "unchanged details must not send a request"
+        );
+    }
+
     use std::sync::Arc;
 
     use super::*;
